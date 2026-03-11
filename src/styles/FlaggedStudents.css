@@ -1,0 +1,159 @@
+.flagged-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 18px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+
+.flagged-banner-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(248, 113, 113, 0.25);
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+}
+
+.flagged-banner-text h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #7f1d1d;
+}
+
+.flagged-banner-text p {
+  margin: 4px 0 0;
+  color: #7f1d1d;
+  opacity: 0.85;
+}
+
+.flagged-list {
+  margin-top: 12px;
+}
+
+.flagged-message {
+  margin: 16px 0;
+  color: #475569;
+}
+
+.flagged-cards {
+  display: grid;
+  gap: 14px;
+}
+
+.flagged-card {
+  display: grid;
+  grid-template-columns: 1.7fr 1.2fr 0.8fr;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+}
+
+.flagged-card-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.flagged-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(99, 102, 241, 0.14);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+.flagged-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.flagged-meta {
+  color: #64748b;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.flagged-card-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.flagged-stat {
+  text-align: left;
+}
+
+.flagged-stat-label {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.flagged-stat-value {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.flagged-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.flagged-btn {
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.08);
+  color: #1e293b;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.flagged-btn:hover {
+  background: rgba(99, 102, 241, 0.18);
+  transform: translateY(-1px);
+}
+
+.flagged-more {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.08);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+@media (max-width: 900px) {
+  .flagged-card {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .flagged-card-stats {
+    justify-content: space-between;
+  }
+  .flagged-card-actions {
+    justify-content: flex-start;
+  }
+}

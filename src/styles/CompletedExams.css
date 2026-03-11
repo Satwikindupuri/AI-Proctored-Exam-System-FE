@@ -1,0 +1,114 @@
+.completed-page {
+  min-height: 100vh;
+  padding: 28px 32px;
+  background: #f3f5fa;
+  box-sizing: border-box;
+  color: #0f172a;
+}
+
+.completed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.completed-header h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.completed-subtitle {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 15px;
+}
+
+.completed-list {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.completed-message {
+  color: #475569;
+  margin: 18px 0;
+}
+
+.completed-error {
+  color: #b91c1c;
+  margin: 18px 0;
+}
+
+.completed-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.completed-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px;
+  cursor: pointer;
+  text-align: left;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.completed-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.12);
+}
+
+.completed-card-main {
+  margin-bottom: 14px;
+}
+
+.completed-card-title {
+  font-size: 19px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.completed-card-meta {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.completed-card-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.completed-card-label {
+  color: #94a3b8;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.completed-card-value {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.completed-card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.completed-card-action {
+  color: #4f46e5;
+  font-weight: 700;
+}

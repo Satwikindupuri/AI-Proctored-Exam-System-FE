@@ -1,82 +1,98 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api.js";
+import "../styles/CompletedExams.css";
 
 export default function CompletedExams() {
-const navigate = useNavigate();
+  const navigate = useNavigate();
 
-// ✅ IMPORTANT: initialize as ARRAY
-const [exams, setExams] = useState([]);
-const [loading, setLoading] = useState(true);
-const [error, setError] = useState("");
+  const [exams, setExams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-useEffect(() => {
-const loadCompletedExams = async () => {
-try {
-const res = await api.get("/faculty/exams/completed");
+  useEffect(() => {
+    const loadCompletedExams = async () => {
+      try {
+        const res = await api.get("/faculty/exams/completed");
 
-    // Safety check
-    if (Array.isArray(res.data)) {
-      setExams(res.data);
-    } else {
-      setExams([]);
-    }
-  } catch (err) {
-    console.error(err);
-    setError("Failed to load completed exams");
-    setExams([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
-loadCompletedExams();
-}, []);
-
-return (
-<div style={{ padding: 30 }}>
-<h2>Completed Exams</h2>
-
-  {/* Loading */}
-  {loading && <p>Loading completed exams...</p>}
-
-  {/* Error */}
-  {!loading && error && <p style={{ color: "red" }}>{error}</p>}
-
-  {/* Empty state */}
-  {!loading && exams.length === 0 && !error && (
-    <p>No completed exams found</p>
-  )}
-
-  {/* Exams List */}
-  {!loading &&
-    exams.map((exam) => (
-      <div
-        key={exam._id}
-        style={{
-          border: "1px solid #ccc",
-          padding: 15,
-          marginBottom: 15,
-          borderRadius: 6,
-          cursor: "pointer"
-        }}
-        onClick={() =>
-          navigate(`/faculty/completed/${exam._id}`)
+        if (Array.isArray(res.data)) {
+          setExams(res.data);
+        } else {
+          setExams([]);
         }
-      >
-        <h3>{exam.title}</h3>
-        <p>
-          {exam.year} – {exam.branch} – {exam.section}
-        </p>
-        <p>Duration: {exam.duration} mins</p>
-        <p>
-          Ended At:{" "}
-          {exam.endTime
-            ? new Date(exam.endTime).toLocaleString()
-            : "N/A"}
-        </p>
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load completed exams");
+        setExams([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCompletedExams();
+  }, []);
+
+  return (
+    <div className="completed-page">
+      <header className="completed-header">
+        <div>
+          <h1>Assessment History</h1>
+          <p className="completed-subtitle">
+            Review recently evaluated exams and access detailed results.
+          </p>
+        </div>
+      </header>
+
+      <div className="completed-list">
+        {loading && <p className="completed-message">Loading completed exams...</p>}
+        {!loading && error && (
+          <p className="completed-error">{error}</p>
+        )}
+
+        {!loading && !error && exams.length === 0 && (
+          <p className="completed-message">No completed exams found</p>
+        )}
+
+        {!loading && exams.length > 0 && (
+          <div className="completed-cards">
+            {exams.map((exam) => (
+              <button
+                key={exam._id}
+                className="completed-card"
+                onClick={() => navigate(`/faculty/completed/${exam._id}`)}
+              >
+                <div className="completed-card-main">
+                  <div className="completed-card-title">{exam.title}</div>
+                  <div className="completed-card-meta">
+                    {exam.year} – {exam.branch} – {exam.section}
+                  </div>
+                </div>
+
+                <div className="completed-card-stats">
+                  <div>
+                    <div className="completed-card-label">Duration</div>
+                    <div className="completed-card-value">
+                      {exam.duration} mins
+                    </div>
+                  </div>
+                  <div>
+                    <div className="completed-card-label">Ended</div>
+                    <div className="completed-card-value">
+                      {exam.endTime
+                        ? new Date(exam.endTime).toLocaleString()
+                        : "N/A"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="completed-card-footer">
+                  <span className="completed-card-action">View Results →</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-    ))}
-</div>
-);
+    </div>
+  );
 }

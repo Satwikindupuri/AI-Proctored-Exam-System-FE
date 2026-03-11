@@ -1,8 +1,9 @@
 import { useState } from "react";
 import api from "../api/api";
 import { useNavigate } from "react-router-dom";
+import "../styles/CreateExam.css";
 
-export default function CreateExam() {
+export default function CreateExam () {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -31,7 +32,8 @@ export default function CreateExam() {
   const [currentQ, setCurrentQ] = useState({
     questionText: "",
     options: ["", "", "", ""],
-    correctAnswer: ""
+    correctAnswer: "",
+    correctOptionIndex: null
   });
 
   // ---------------- STEP 1: CREATE EXAM (DRAFT) ----------------
@@ -107,305 +109,433 @@ alert("Failed to add question");
 };
 
   return (
-    <div style={{ padding: 40, maxWidth: 700, margin: "auto" }}>
-      <h2>Create Exam</h2>
-      <p>Step {step} of 2</p>
+    <div className="create-exam-page">
+      <div className="create-exam-header">
+        <div>
+          <h1>Create New Assessment</h1>
+          <p style={{ color: "#64748b", margin: "8px 0 0" }}>
+            Fill in the exam details below and add questions to publish the exam.
+          </p>
+        </div>
+        <div style={{ color: "#475569", fontWeight: 700 }}>
+          Step {step} of 2
+        </div>
+      </div>
 
-      {/* ---------------- STEP 1: EXAM DETAILS ---------------- */}
-      {step === 1 && (
-        <>
-          <input
-            placeholder="Exam Title"
-            value={examData.title}
-            onChange={e =>
-              setExamData({ ...examData, title: e.target.value })
-            }
-          />
+      <div className="create-exam-card">
+        <div className="card-section">
+          <div className="card-section-header">
+            <span>i</span>
+            Basic Details
+          </div>
 
-          <select value={examData.examType} disabled style={{ marginTop: 10 }}>
-            <option value="MCQ">MCQ Exam</option>
-            <option value="CODING">Coding Exam</option>
-          </select>
-
-          <input
-            type="number"
-            placeholder="Duration (minutes)"
-            value={examData.duration}
-            onChange={e =>
-              setExamData({ ...examData, duration: e.target.value })
-            }
-            style={{ marginTop: 10 }}
-          />
-
-          <textarea
-            placeholder="Instructions (shown before exam starts)"
-            value={examData.instructions}
-            onChange={e =>
-              setExamData({ ...examData, instructions: e.target.value })
-            }
-            style={{ marginTop: 10 }}
-          />
-
-          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+          <div className="form-field">
+            <label>Assessment Name</label>
             <input
-              placeholder="Year"
-              onChange={e =>
-                setExamData({ ...examData, year: e.target.value })
-              }
-            />
-            <input
-              placeholder="Branch"
-              onChange={e =>
-                setExamData({ ...examData, branch: e.target.value })
-              }
-            />
-            <input
-              placeholder="Section"
-              onChange={e =>
-                setExamData({ ...examData, section: e.target.value })
+              placeholder="e.g., Final Year Programming Logic"
+              value={examData.title}
+              onChange={(e) =>
+                setExamData({ ...examData, title: e.target.value })
               }
             />
           </div>
 
-          <button
-            style={{ marginTop: 20 }}
-            onClick={createExam}
-            disabled={loading}
-          >
-            {loading ? "Creating..." : "Next → Add Questions"}
-          </button>
-        </>
-      )}
-
-      {/* ---------------- STEP 2: ADD QUESTIONS ---------------- */}
-      {step === 2 && (
-        <>
-          <h3>Add MCQ Questions</h3>
-
-          {/* MCQ MODE TOGGLE */}
-          <div style={{ marginBottom: 20 }}>
-            <label>
+          <div className="form-row">
+            <div className="form-field">
+              <label>Target Class</label>
               <input
-                type="radio"
-                checked={mode === "MANUAL"}
-                onChange={() => setMode("MANUAL")}
-              />{" "}
-              Manual
-            </label>
-
-            <label style={{ marginLeft: 20 }}>
-              <input
-                type="radio"
-                checked={mode === "AI"}
-                onChange={() => setMode("AI")}
-              />{" "}
-              AI Generated
-            </label>
-          </div>
-
-          {mode === "AI" && (
-            <div style={{ marginBottom: 20 }}>
-              <textarea
-                placeholder="Enter syllabus / topic"
-                value={syllabus}
-                onChange={(e) => setSyllabus(e.target.value)}
+                placeholder="CS-2024-A"
+                value={
+                  examData.year || examData.branch || examData.section
+                    ? `${examData.year || ""}${
+                        examData.branch ? "-" + examData.branch : ""
+                      }${examData.section ? "-" + examData.section : ""}`
+                    : ""
+                }
+                onChange={(e) => {
+                  // Keep the individual fields in sync so other parts can still use them.
+                  const parts = e.target.value.split("-");
+                  setExamData({
+                    ...examData,
+                    year: parts[0] || "",
+                    branch: parts[1] || "",
+                    section: parts[2] || ""
+                  });
+                }}
               />
-
+            </div>
+            <div className="form-field">
+              <label>Duration (Mins)</label>
               <input
                 type="number"
-                placeholder="Number of questions"
-                value={aiCount}
-                onChange={(e) => setAiCount(e.target.value)}
-                style={{ marginTop: 10 }}
-              />
-
-              <select
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
-                style={{ marginTop: 10 }}
-              >
-                <option value="EASY">Easy</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HARD">Hard</option>
-              </select>
-
-              <button
-                style={{ marginTop: 15 }}
-                disabled={aiLoading}
-                onClick={async () => {
-                  if (!syllabus || !aiCount) {
-                    alert("Syllabus and number of questions required");
-                    return;
-                  }
-
-                  setAiLoading(true);
-                  try {
-                    const res = await api.post(
-                      `/faculty/exams/${examId}/questions/ai-generate`,
-                      {
-                        syllabus,
-                        numberOfQuestions: Number(aiCount),
-                        difficulty
-                      }
-                    );
-
-                    setQuestions([...questions, ...res.data.questions]);
-                    alert("AI questions generated");
-                  } catch (err) {
-                    console.error(err.response?.data || err);
-                    alert("AI generation failed");
-                  } finally {
-                    setAiLoading(false);
-                  }
-                }}
-              >
-                {aiLoading ? "Generating..." : "Generate Questions"}
-              </button>
-            </div>
-          )}
-
-          {mode === "MANUAL" && (
-            <>
-              <textarea
-                placeholder="Question text"
-                value={currentQ.questionText}
-                onChange={e =>
-                  setCurrentQ({ ...currentQ, questionText: e.target.value })
+                placeholder="60"
+                value={examData.duration}
+                onChange={(e) =>
+                  setExamData({ ...examData, duration: e.target.value })
                 }
               />
+            </div>
+          </div>
 
-              {currentQ.options.map((opt, i) => (
-                <div key={i} style={{ marginTop: 8 }}>
-                  <input
-                    placeholder={`Option ${i + 1}`}
-                    value={opt}
-                    onChange={e => {
-                      const opts = [...currentQ.options];
-                      opts[i] = e.target.value;
-                      setCurrentQ({ ...currentQ, options: opts });
-                    }}
-                  />
-                  <input
-                    type="radio"
-                    name="correct"
-                    checked={currentQ.correctOptionIndex === i}
-                    onChange={() =>
-                      setCurrentQ({ ...currentQ, correctOptionIndex: i })
-                    }
-                  />{" "}
-                  Correct
-                </div>
-              ))}
-
-              <button style={{ marginTop: 15 }} onClick={addQuestion}>
-                Add Question
+          <div className="form-field">
+            <label>Exam Type</label>
+            <div className="button-group">
+              <button
+                type="button"
+                className={`toggle-button ${
+                  examData.examType === "MCQ" ? "active" : ""
+                }`}
+                onClick={() =>
+                  setExamData({ ...examData, examType: "MCQ" })
+                }
+              >
+                Multiple Choice
               </button>
-            </>
+              <button
+                type="button"
+                className={`toggle-button ${
+                  examData.examType === "CODING" ? "active" : ""
+                }`}
+                onClick={() =>
+                  setExamData({ ...examData, examType: "CODING" })
+                }
+              >
+                Coding Assessment
+              </button>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-field">
+              <label>Year</label>
+              <input
+                placeholder="2024"
+                value={examData.year}
+                onChange={(e) =>
+                  setExamData({ ...examData, year: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Branch</label>
+              <input
+                placeholder="CSE"
+                value={examData.branch}
+                onChange={(e) =>
+                  setExamData({ ...examData, branch: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Section</label>
+              <input
+                placeholder="A"
+                value={examData.section}
+                onChange={(e) =>
+                  setExamData({ ...examData, section: e.target.value })
+                }
+              />
+            </div>
+          </div>
+
+          {step === 1 && (
+            <button
+              className="primary-btn"
+              onClick={createExam}
+              disabled={loading}
+            >
+              {loading ? "Creating..." : "Next → Add Questions"}
+            </button>
           )}
+        </div>
 
-          {questions.length > 0 && (
-            <div style={{ marginTop: 30 }}>
-              <h3>Questions Preview</h3>
+        <div className="card-section">
+          <div className="card-section-header">
+            <span>⏱</span>
+            Instructions
+          </div>
+          <div className="form-field">
+            <textarea
+              placeholder="List rules, proctoring details, and scoring methodology..."
+              value={examData.instructions}
+              onChange={(e) =>
+                setExamData({ ...examData, instructions: e.target.value })
+              }
+            />
+          </div>
 
-              {questions.map((q, qIndex) => (
-                <div
-                  key={qIndex}
-                  style={{
-                    border: "1px solid #ccc",
-                    padding: 15,
-                    marginBottom: 20,
-                    borderRadius: 6
+          <div className="info-box">
+            <span>⚠</span>
+            Anti-cheat mechanisms will be automatically enabled for this exam.
+          </div>
+        </div>
+      </div>
+
+      <div className="questions-section">
+        <div className="questions-header">
+          <h2>Questions ({questions.length})</h2>
+          {step === 1 ? (
+            <button
+              className="secondary-btn"
+              onClick={createExam}
+              disabled={loading}
+            >
+              {loading ? "Creating..." : "Add Question"}
+            </button>
+          ) : (
+            <button
+              className="secondary-btn"
+              onClick={() => setStep(1)}
+            >
+              Back to Details
+            </button>
+          )}
+        </div>
+
+        {step === 1 && (
+          <p style={{ color: "#64748b" }}>
+            Complete the exam details to add questions.
+          </p>
+        )}
+
+        {step === 2 && (
+          <>
+            <div className="button-group" style={{ marginBottom: 20 }}>
+              <button
+                type="button"
+                className={`toggle-button ${mode === "MANUAL" ? "active" : ""}`}
+                onClick={() => setMode("MANUAL")}
+              >
+                Manual
+              </button>
+              <button
+                type="button"
+                className={`toggle-button ${mode === "AI" ? "active" : ""}`}
+                onClick={() => setMode("AI")}
+              >
+                AI Generated
+              </button>
+            </div>
+
+            {mode === "AI" && (
+              <div style={{ marginBottom: 20 }}>
+                <div className="form-field">
+                  <label>Syllabus / Topic</label>
+                  <textarea
+                    placeholder="Enter syllabus / topic"
+                    value={syllabus}
+                    onChange={(e) => setSyllabus(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-field">
+                    <label>Number of questions</label>
+                    <input
+                      type="number"
+                      placeholder="5"
+                      value={aiCount}
+                      onChange={(e) => setAiCount(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>Difficulty</label>
+                    <select
+                      value={difficulty}
+                      onChange={(e) => setDifficulty(e.target.value)}
+                    >
+                      <option value="EASY">Easy</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HARD">Hard</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  className="primary-btn"
+                  disabled={aiLoading}
+                  onClick={async () => {
+                    if (!syllabus || !aiCount) {
+                      alert("Syllabus and number of questions required");
+                      return;
+                    }
+
+                    setAiLoading(true);
+                    try {
+                      const res = await api.post(
+                        `/faculty/exams/${examId}/questions/ai-generate`,
+                        {
+                          syllabus,
+                          numberOfQuestions: Number(aiCount),
+                          difficulty
+                        }
+                      );
+                      setQuestions([...questions, ...res.data.questions]);
+                      alert("AI questions generated");
+                    } catch (err) {
+                      console.error(err.response?.data || err);
+                      alert("AI generation failed");
+                    } finally {
+                      setAiLoading(false);
+                    }
                   }}
                 >
-                  {/* Question Text */}
+                  {aiLoading ? "Generating..." : "Generate Questions"}
+                </button>
+              </div>
+            )}
+
+            {mode === "MANUAL" && (
+              <>
+                <div className="form-field">
+                  <label>Question</label>
                   <textarea
-                    value={q.questionText}
-                    onChange={(e) => {
-                      const updated = [...questions];
-                      updated[qIndex].questionText = e.target.value;
-                      setQuestions(updated);
-                    }}
+                    placeholder="Question text"
+                    value={currentQ.questionText}
+                    onChange={(e) =>
+                      setCurrentQ({
+                        ...currentQ,
+                        questionText: e.target.value
+                      })
+                    }
                   />
+                </div>
 
-                  {/* Options */}
-                  {q.options.map((opt, optIndex) => (
-                    <div key={optIndex} style={{ marginTop: 5 }}>
-                      <input
-                        value={opt}
-                        onChange={(e) => {
-                          const updated = [...questions];
-                          updated[qIndex].options[optIndex] = e.target.value;
-                          setQuestions(updated);
-                        }}
-                      />
-
+                {currentQ.options.map((opt, i) => (
+                  <div key={i} className="option-row">
+                    <input
+                      placeholder={`Option ${i + 1}`}
+                      value={opt}
+                      onChange={(e) => {
+                        const opts = [...currentQ.options];
+                        opts[i] = e.target.value;
+                        setCurrentQ({ ...currentQ, options: opts });
+                      }}
+                    />
+                    <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <input
                         type="radio"
-                        name={`correct-${qIndex}`}
-                        checked={q.correctAnswer === opt}
-                        onChange={() => {
-                          const updated = [...questions];
-                          updated[qIndex].correctAnswer = opt;
-                          setQuestions(updated);
-                        }}
-                        style={{ marginLeft: 10 }}
+                        name="correct"
+                        checked={currentQ.correctOptionIndex === i}
+                        onChange={() =>
+                          setCurrentQ({
+                            ...currentQ,
+                            correctOptionIndex: i
+                          })
+                        }
                       />
                       Correct
+                    </label>
+                  </div>
+                ))}
+
+                <button className="primary-btn" onClick={addQuestion}>
+                  Add Question
+                </button>
+              </>
+            )}
+
+            {questions.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <h3 style={{ marginBottom: 16 }}>Questions Preview</h3>
+
+                {questions.map((q, qIndex) => (
+                  <div key={qIndex} className="question-card">
+                    <div className="form-field">
+                      <label>Question</label>
+                      <textarea
+                        value={q.questionText}
+                        onChange={(e) => {
+                          const updated = [...questions];
+                          updated[qIndex].questionText = e.target.value;
+                          setQuestions(updated);
+                        }}
+                      />
                     </div>
-                  ))}
 
-                  <p style={{ fontSize: 12, color: "#666" }}>
-                    Source: {q.source || "MANUAL"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+                    {q.options.map((opt, optIndex) => (
+                      <div key={optIndex} className="option-row">
+                        <input
+                          value={opt}
+                          onChange={(e) => {
+                            const updated = [...questions];
+                            updated[qIndex].options[optIndex] = e.target.value;
+                            setQuestions(updated);
+                          }}
+                        />
+                        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <input
+                            type="radio"
+                            name={`correct-${qIndex}`}
+                            checked={q.correctAnswer === opt}
+                            onChange={() => {
+                              const updated = [...questions];
+                              updated[qIndex].correctAnswer = opt;
+                              setQuestions(updated);
+                            }}
+                          />
+                          Correct
+                        </label>
+                      </div>
+                    ))}
 
-          <p style={{ marginTop: 10 }}>
-            Total Questions Added: <b>{questions.length}</b>
-          </p>
+                    <p className="question-source">
+                      Source: {q.source || "MANUAL"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
 
-          {/* PUBLISH — ENFORCE MINIMUM 1 QUESTION */}
-          {questions.length > 0 && (
-            <><button
-              style={{ marginTop: 20 }}
-              onClick={async () => {
-                try {
-                  await api.patch(
-                    `/faculty/exams/${examId}/questions/update`,
-                    { questions }
-                  );
-                  alert("Questions saved successfully");
-                } catch (err) {
-                  console.error(err.response?.data || err);
-                  alert("Failed to save questions");
-                }
-              } }
-            >
-              Save Questions
-            </button><button
-              style={{ marginTop: 30 }}
-              onClick={async () => {
-                try {
-                  await api.patch(`/faculty/exams/${examId}/publish`);
-                  navigate("/faculty");
-                } catch (err) {
-                  alert("Failed to publish exam");
-                }
-              } }
-            >
-                Publish Exam
-              </button></>
-          )}
-
-          {questions.length === 0 && (
-            <p style={{ color: "red" }}>
-              Add at least one question to publish
+            <p style={{ marginTop: 12 }}>
+              Total Questions Added: <b>{questions.length}</b>
             </p>
-          )}
-        </>
-      )}
+
+            {questions.length > 0 && (
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  className="secondary-btn"
+                  onClick={async () => {
+                    try {
+                      await api.patch(
+                        `/faculty/exams/${examId}/questions/update`,
+                        { questions }
+                      );
+                      alert("Questions saved successfully");
+                    } catch (err) {
+                      console.error(err.response?.data || err);
+                      alert("Failed to save questions");
+                    }
+                  }}
+                >
+                  Save Questions
+                </button>
+                <button
+                  className="primary-btn"
+                  onClick={async () => {
+                    try {
+                      await api.patch(`/faculty/exams/${examId}/publish`);
+                      navigate("/faculty");
+                    } catch (err) {
+                      alert("Failed to publish exam");
+                    }
+                  }}
+                >
+                  Publish Exam
+                </button>
+              </div>
+            )}
+
+            {questions.length === 0 && (
+              <p style={{ color: "#dc2626" }}>
+                Add at least one question to publish
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
