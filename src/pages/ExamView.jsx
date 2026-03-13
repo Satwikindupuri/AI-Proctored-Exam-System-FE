@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/api";
-import { initFaceDetector, detectFaces } from "../ai/faceProctor";
+import { loadProctorModels } from "../proctoring/models";
+import { startProctoringEngine } from "../proctoring/engine";
+import { EVENT_TYPES } from "../proctoring/rules";
 
 // --- REUSEABLE CAMERA COMPONENT ---
 const CameraPreview = ({ stream, videoRef }) => {
@@ -31,6 +33,18 @@ export default function ExamView() {
   const { examId } = useParams();
   const navigate = useNavigate();
 
+  // Slightly stricter policy improves early detection of small/brief objects.
+  const STRICT_PROCTOR_POLICY = {
+    intervalMs: 700,
+    cooldownMs: 3000,
+    noFaceMs: 5000,
+    multiFaceMs: 1800,
+    phoneFramesRequired: 1,
+    multiPersonsFramesRequired: 1,
+    minPhoneScore: 0.2,
+    minPersonScore: 0.35,
+  };
+
   // CORE STATES
   const [exam, setExam] = useState(null);
   const [started, setStarted] = useState(false);
@@ -38,6 +52,7 @@ export default function ExamView() {
   const [submitting, setSubmitting] = useState(false);
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   // PROCTORING STATES
   const [violations, setViolations] = useState(0);
@@ -47,65 +62,208 @@ export default function ExamView() {
   const [modalType, setModalType] = useState("PERMISSIONS"); 
   const [warningMsg, setWarningMsg] = useState(""); 
   const [isLocked, setIsLocked] = useState(false); 
+  const [noiseWarnings, setNoiseWarnings] = useState(0);
+  const [headPoseWarnings, setHeadPoseWarnings] = useState(0);
+  const [noiseLevel, setNoiseLevel] = useState(0);
+  const [micStatus, setMicStatus] = useState("unknown");
 
   const MAX_VIOLATIONS = 3;
+  const NOISE_MIN_RMS = 0.01;
+  const HEAD_POSE_WARN_SUSTAIN_MS = 3500;
+  const HEAD_POSE_WARN_COOLDOWN_MS = 15000;
+  const FACE_CENTER_TOLERANCE_X = 0.27;
+  const FACE_CENTER_TOLERANCE_Y = 0.3;
+  const FACE_MIN_AREA_RATIO = 0.025;
+  const FACE_YAW_TOLERANCE = 0.55;
+  const HEAD_POSE_EVIDENCE_REQUIRED = 3;
+  const violationsRef = useRef(0);
+  const noiseWarningsRef = useRef(0);
+  const headPoseWarningsRef = useRef(0);
   const proctoringPaused = useRef(true);
   const cooldown = useRef(false);
-  const faceDetectorRef = useRef(null); 
-  const noFaceStartRef = useRef(null);
+  const proctoringSessionRef = useRef(null);
+  const startedRef = useRef(false);
+  const finishedRef = useRef(false);
+  const audioContextRef = useRef(null);
+  const audioAnalyserRef = useRef(null);
+  const audioSinkGainRef = useRef(null);
+  const noiseMonitorRef = useRef(null);
+  const noiseEvidenceRef = useRef(0);
+  const noiseBaselineRef = useRef(0.004);
+  const noiseCooldownRef = useRef(false);
+  const headPoseOffStartRef = useRef(null);
+  const headPoseCooldownRef = useRef(false);
+  const headPoseEvidenceRef = useRef(0);
   
   // 🔥 SEPARATE REFS: One for AI (Main UI), one for Modal display
   const webcamVideoRef = useRef(null); 
   const modalVideoRef = useRef(null);
-  const aiIntervalRef = useRef(null);
   const examTimerRef = useRef(null);
   const hasSubmittedOnTimeUpRef = useRef(false);
   const submitExamRef = useRef(null);
+  const snapshotTimerRef = useRef(null);
+  const snapshotCountRef = useRef(0);
 
   const resetAIState = () => {
     console.log("RESETTING AI STATE");
-    noFaceStartRef.current = null;
     proctoringPaused.current = false;
   };
+
+  useEffect(() => {
+    startedRef.current = started;
+    finishedRef.current = finished;
+  }, [started, finished]);
+
+  const parsePoint = (point) => {
+    if (!point) return null;
+    if (Array.isArray(point)) {
+      return { x: Number(point[0] ?? 0), y: Number(point[1] ?? 0) };
+    }
+    return { x: Number(point.x ?? 0), y: Number(point.y ?? 0) };
+  };
+
+  const getFaceBox = (face) => {
+    if (face?.box) {
+      const { xMin = 0, yMin = 0, width = 0, height = 0 } = face.box;
+      return { x: xMin, y: yMin, width, height };
+    }
+
+    const topLeft = parsePoint(face?.boundingBox?.topLeft);
+    const bottomRight = parsePoint(face?.boundingBox?.bottomRight);
+    if (!topLeft || !bottomRight) return null;
+
+    return {
+      x: topLeft.x,
+      y: topLeft.y,
+      width: Math.max(0, bottomRight.x - topLeft.x),
+      height: Math.max(0, bottomRight.y - topLeft.y),
+    };
+  };
+
+  const getFaceKeypoint = (face, names) => {
+    const points = face?.keypoints || [];
+    const byName = points.find((p) => names.includes(p?.name));
+    if (!byName) return null;
+    return parsePoint(byName);
+  };
+
+  const triggerHeadPoseWarning = useCallback(() => {
+    setHeadPoseWarnings((prev) => {
+      const next = prev + 1;
+      headPoseWarningsRef.current = next;
+      setWarningMsg("Please keep your face straight and centered. Don't change your face position.");
+      setTimeout(() => setWarningMsg(""), 3500);
+      return next;
+    });
+  }, []);
+
+  const evaluateHeadPose = useCallback((faces, videoEl) => {
+    if (!videoEl || !startedRef.current || finishedRef.current) return;
+
+    if (!Array.isArray(faces) || faces.length !== 1) {
+      headPoseOffStartRef.current = null;
+      headPoseEvidenceRef.current = 0;
+      return;
+    }
+
+    const face = faces[0];
+    const box = getFaceBox(face);
+    if (!box || !videoEl.videoWidth || !videoEl.videoHeight) return;
+
+    const centerX = (box.x + box.width / 2) / videoEl.videoWidth;
+    const centerY = (box.y + box.height / 2) / videoEl.videoHeight;
+    const areaRatio = (box.width * box.height) / (videoEl.videoWidth * videoEl.videoHeight);
+
+    const offCenter =
+      Math.abs(centerX - 0.5) > FACE_CENTER_TOLERANCE_X ||
+      Math.abs(centerY - 0.5) > FACE_CENTER_TOLERANCE_Y ||
+      areaRatio < FACE_MIN_AREA_RATIO;
+
+    const leftEye = getFaceKeypoint(face, ["leftEye"]);
+    const rightEye = getFaceKeypoint(face, ["rightEye"]);
+    const nose = getFaceKeypoint(face, ["noseTip", "nose"]);
+
+    let turnedSideways = false;
+    if (leftEye && rightEye && nose) {
+      const eyeDistance = Math.max(1, Math.abs(rightEye.x - leftEye.x));
+      const eyeMidX = (leftEye.x + rightEye.x) / 2;
+      const yawRatio = Math.abs(nose.x - eyeMidX) / eyeDistance;
+      turnedSideways = yawRatio > FACE_YAW_TOLERANCE;
+    }
+
+    const badPose = offCenter || turnedSideways;
+    const now = Date.now();
+
+    if (badPose) {
+      headPoseEvidenceRef.current = Math.min(headPoseEvidenceRef.current + 1, 8);
+
+      if (headPoseEvidenceRef.current < HEAD_POSE_EVIDENCE_REQUIRED) {
+        headPoseOffStartRef.current = null;
+        return;
+      }
+
+      if (!headPoseOffStartRef.current) {
+        headPoseOffStartRef.current = now;
+      }
+
+      if (
+        now - headPoseOffStartRef.current >= HEAD_POSE_WARN_SUSTAIN_MS &&
+        !headPoseCooldownRef.current
+      ) {
+        headPoseCooldownRef.current = true;
+        headPoseOffStartRef.current = null;
+        headPoseEvidenceRef.current = 0;
+        triggerHeadPoseWarning();
+        setTimeout(() => {
+          headPoseCooldownRef.current = false;
+        }, HEAD_POSE_WARN_COOLDOWN_MS);
+      }
+    } else {
+      headPoseOffStartRef.current = null;
+      headPoseEvidenceRef.current = Math.max(0, headPoseEvidenceRef.current - 1);
+    }
+  }, [triggerHeadPoseWarning]);
 
   const startAIProctoring = async () => {
     console.log("AI PROCTORING ENABLED");
     resetAIState();
 
-    if (aiIntervalRef.current) clearInterval(aiIntervalRef.current);
+    if (proctoringSessionRef.current) {
+      proctoringSessionRef.current.stop();
+      proctoringSessionRef.current = null;
+    }
 
-    aiIntervalRef.current = setInterval(async () => {
-      if (proctoringPaused.current) return;
+    const video = webcamVideoRef.current;
+    if (!video) return;
 
-      const video = webcamVideoRef.current;
+    proctoringSessionRef.current = await startProctoringEngine({
+      videoEl: video,
+      policy: STRICT_PROCTOR_POLICY,
+      onEvent: (evt) => {
+        if (proctoringPaused.current) return;
 
-      // Check if video is ready
-      if (!video || video.readyState < 2 || video.paused) {
-        console.log("AI: Video not ready yet, skipping frame...");
-        // If it's paused, try to play it
-        if (video && video.paused) video.play().catch(() => {});
-        return;
-      }
-
-      try {
-        const faces = await detectFaces(video);
-        console.log("AI FACE COUNT:", faces.length);
-
-        if (faces.length === 0) {
-          if (!noFaceStartRef.current) noFaceStartRef.current = Date.now();
-          const noFaceSeconds = (Date.now() - noFaceStartRef.current) / 1000;
-          console.log("NO FACE SECONDS:", noFaceSeconds);
-
-          if (noFaceSeconds >= 5) {
-            handleViolation("NO_FACE_DETECTED");
-          }
-        } else {
-          noFaceStartRef.current = null;
+        if (evt.type === EVENT_TYPES.NO_FACE) {
+          handleViolation("NO_FACE_DETECTED");
+        } else if (evt.type === EVENT_TYPES.MULTIPLE_FACES) {
+          handleViolation("MULTIPLE_FACE_DETECTED");
+        } else if (evt.type === EVENT_TYPES.PHONE_DETECTED) {
+          handleViolation("MOBILE_DEVICE_DETECTED");
+        } else if (evt.type === EVENT_TYPES.MULTIPLE_PERSONS) {
+          handleViolation("MULTIPLE_PERSONS_DETECTED");
         }
-      } catch (err) {
-        console.error("AI Detection Error:", err);
-      }
-    }, 1000);
+      },
+      onTick: ({ predictions, faces }) => {
+        evaluateHeadPose(faces, video);
+
+        const labels = predictions
+          .filter((p) => p.score >= 0.25)
+          .map((p) => `${p.class}:${p.score.toFixed(2)}`);
+
+        if (labels.length) {
+          console.log("PROCTOR OBJECTS:", labels.join(", "));
+        }
+      },
+    });
   };
 
   useEffect(() => {
@@ -122,11 +280,35 @@ export default function ExamView() {
 
   const requestCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      let stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+
+      if (stream.getAudioTracks().length === 0) {
+        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        stream = new MediaStream([...stream.getVideoTracks(), ...audioOnly.getAudioTracks()]);
+      }
+
+      const micTrack = stream.getAudioTracks()[0];
+      setMicStatus(
+        micTrack
+          ? `${micTrack.readyState} | ${micTrack.enabled ? "enabled" : "disabled"} | ${micTrack.muted ? "muted" : "unmuted"}`
+          : "no-audio-track"
+      );
+
       setCameraStream(stream);
       setModalType("START"); 
+      noiseWarningsRef.current = 0;
+      setNoiseWarnings(0);
+      startNoiseMonitoring(stream);
     } catch (err) {
-      alert("Webcam access is required for proctoring.");
+      setMicStatus("permission-or-device-error");
+      alert("Camera and microphone access are required for proctoring.");
     }
   };
 
@@ -137,11 +319,11 @@ export default function ExamView() {
         if (element.requestFullscreen) await element.requestFullscreen();
       }
       
-      await initFaceDetector();
-      faceDetectorRef.current = true;
+      await loadProctorModels();
       
       if (!started) {
         await api.post(`/student/exams/${examId}/start`);
+        snapshotCountRef.current = 0;
         setStarted(true);
       }
       setIsFullScreen(true);
@@ -159,7 +341,6 @@ export default function ExamView() {
   const resumeExam = () => {
     setShowModal(false);
     proctoringPaused.current = true; 
-    noFaceStartRef.current = null;
 
     // Ensure the main video is actually playing after modal closure
     if (webcamVideoRef.current) {
@@ -171,19 +352,198 @@ export default function ExamView() {
     }, 1500);
   };
 
+  const captureAndUploadSnapshot = useCallback(async (reason = "interval") => {
+    if (finished || submitting) return;
+    if (snapshotCountRef.current >= 10) return;
+
+    const video = webcamVideoRef.current;
+    if (!video || video.readyState < 2) return;
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = 320;
+      canvas.height = 240;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = canvas.toDataURL("image/jpeg", 0.55);
+
+      await api.post(`/student/exams/${examId}/snapshot`, {
+        imageData,
+        capturedAt: new Date().toISOString(),
+        reason,
+      });
+
+      snapshotCountRef.current += 1;
+    } catch (error) {
+      // Silent mode: evidence capture should never disturb the candidate.
+      console.log("Snapshot upload skipped", error?.message || error);
+    }
+  }, [examId, finished, submitting]);
+
+  const stopNoiseMonitoring = useCallback(() => {
+    if (noiseMonitorRef.current) {
+      clearInterval(noiseMonitorRef.current);
+      noiseMonitorRef.current = null;
+    }
+
+    audioAnalyserRef.current = null;
+    audioSinkGainRef.current = null;
+    noiseEvidenceRef.current = 0;
+    noiseBaselineRef.current = 0.004;
+    noiseCooldownRef.current = false;
+    setNoiseLevel(0);
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+  }, []);
+
+  const triggerNoiseWarning = useCallback(() => {
+    setNoiseWarnings((prev) => {
+      const newCount = prev + 1;
+      noiseWarningsRef.current = newCount;
+
+      setWarningMsg(`Please stay in a calm environment. Noise warning ${newCount}.`);
+      setTimeout(() => setWarningMsg(""), 3500);
+
+      return newCount;
+    });
+  }, []);
+
+  const startNoiseMonitoring = useCallback((stream) => {
+    const hasAudioTrack = stream?.getAudioTracks?.().length > 0;
+    if (!hasAudioTrack) return;
+
+    stopNoiseMonitoring();
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const audioContext = new AudioContextClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    const sinkGain = audioContext.createGain();
+    sinkGain.gain.value = 0;
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.15;
+    source.connect(analyser);
+    analyser.connect(sinkGain);
+    sinkGain.connect(audioContext.destination);
+
+    audioContext.resume().catch(() => {});
+
+    audioContextRef.current = audioContext;
+    audioAnalyserRef.current = analyser;
+    audioSinkGainRef.current = sinkGain;
+
+    const sampleBuffer = new Uint8Array(analyser.fftSize);
+    const frequencyBuffer = new Uint8Array(analyser.frequencyBinCount);
+
+    noiseMonitorRef.current = setInterval(() => {
+      if (!startedRef.current || finishedRef.current || proctoringPaused.current) return;
+      if (audioContext.state === "suspended") {
+        audioContext.resume().catch(() => {});
+        return;
+      }
+
+      analyser.getByteTimeDomainData(sampleBuffer);
+      analyser.getByteFrequencyData(frequencyBuffer);
+
+      let sumSquares = 0;
+      for (let i = 0; i < sampleBuffer.length; i += 1) {
+        const normalized = (sampleBuffer[i] - 128) / 128;
+        sumSquares += normalized * normalized;
+      }
+
+      const rms = Math.sqrt(sumSquares / sampleBuffer.length);
+
+      let freqSum = 0;
+      for (let i = 0; i < frequencyBuffer.length; i += 1) {
+        freqSum += frequencyBuffer[i];
+      }
+      const freqAvg = (freqSum / frequencyBuffer.length) / 255;
+
+      // Use strongest signal between time-domain and frequency-domain estimations.
+      const signalLevel = Math.max(rms, freqAvg * 0.35);
+
+      setNoiseLevel(signalLevel);
+      const baseline = Math.max(NOISE_MIN_RMS, noiseBaselineRef.current);
+
+      // Update baseline only when close to ambient level (avoids learning active speech as baseline).
+      if (signalLevel < baseline * 1.35) {
+        noiseBaselineRef.current = baseline * 0.92 + signalLevel * 0.08;
+      }
+
+      const dynamicThreshold = Math.max(NOISE_MIN_RMS * 2.5, baseline * 3.0);
+
+      if (signalLevel > dynamicThreshold) {
+        noiseEvidenceRef.current += 1;
+      } else {
+        noiseEvidenceRef.current = Math.max(0, noiseEvidenceRef.current - 1);
+      }
+
+      if (noiseEvidenceRef.current >= 2 && !noiseCooldownRef.current) {
+        noiseCooldownRef.current = true;
+        noiseEvidenceRef.current = 0;
+        triggerNoiseWarning();
+        setTimeout(() => {
+          noiseCooldownRef.current = false;
+        }, 12000);
+      }
+    }, 1500);
+  }, [stopNoiseMonitoring, triggerNoiseWarning]);
+
+  useEffect(() => {
+    if (!started || finished || !exam?.duration || !cameraStream) return;
+
+    const durationMinutes = Number(exam.duration);
+    const durationMs = Number.isFinite(durationMinutes) ? durationMinutes * 60 * 1000 : 0;
+    if (!durationMs) return;
+
+    // Example: 60 mins / 10 snapshots => one every 6 mins.
+    const intervalMs = Math.max(30_000, Math.floor(durationMs / 10));
+
+    if (snapshotTimerRef.current) {
+      clearInterval(snapshotTimerRef.current);
+      snapshotTimerRef.current = null;
+    }
+
+    snapshotTimerRef.current = setInterval(() => {
+      if (snapshotCountRef.current >= 10) {
+        if (snapshotTimerRef.current) {
+          clearInterval(snapshotTimerRef.current);
+          snapshotTimerRef.current = null;
+        }
+        return;
+      }
+
+      captureAndUploadSnapshot("interval");
+    }, intervalMs);
+
+    return () => {
+      if (snapshotTimerRef.current) {
+        clearInterval(snapshotTimerRef.current);
+        snapshotTimerRef.current = null;
+      }
+    };
+  }, [started, finished, exam, cameraStream, captureAndUploadSnapshot]);
+
   const handleViolation = useCallback((reason) => {
     if (finished || submitting || proctoringPaused.current || cooldown.current) return;
 
     cooldown.current = true;
     proctoringPaused.current = true;
-    
-    if (aiIntervalRef.current) {
-      clearInterval(aiIntervalRef.current);
-      aiIntervalRef.current = null;
-    }
+
+    proctoringSessionRef.current?.stop();
+    proctoringSessionRef.current = null;
 
     setViolations((prev) => {
       const newCount = prev + 1;
+      violationsRef.current = newCount;
       api.post(`/student/exams/${examId}/violation`, { reason, count: newCount }).catch(() => {});
 
       if (newCount >= MAX_VIOLATIONS) {
@@ -291,21 +651,35 @@ export default function ExamView() {
     if (submitting || finished) return;
     setSubmitting(true); setFinished(true);
     proctoringPaused.current = true;
-    if (aiIntervalRef.current) clearInterval(aiIntervalRef.current);
+    proctoringSessionRef.current?.stop();
+    proctoringSessionRef.current = null;
     try {
       const payload = Object.entries(answers).map(([qid, ans]) => ({ questionId: qid, answer: ans }));
       await api.post(`/student/exams/${examId}/submit`, { answers: payload, autoSubmit: auto });
       alert(auto ? "Exam auto-submitted." : "Exam submitted successfully.");
     } finally {
+      stopNoiseMonitoring();
       if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
       navigate("/student");
     }
-  }, [answers, examId, finished, navigate, submitting, cameraStream]);
+  }, [answers, examId, finished, navigate, submitting, cameraStream, stopNoiseMonitoring]);
 
   useEffect(() => {
     submitExamRef.current = submitExam;
   }, [submitExam]);
+
+  useEffect(() => {
+    return () => {
+      proctoringSessionRef.current?.stop();
+      proctoringSessionRef.current = null;
+      if (snapshotTimerRef.current) {
+        clearInterval(snapshotTimerRef.current);
+        snapshotTimerRef.current = null;
+      }
+      stopNoiseMonitoring();
+    };
+  }, [stopNoiseMonitoring]);
 
   useEffect(() => {
     if (!started || finished || timeLeft === null) return;
@@ -326,7 +700,7 @@ export default function ExamView() {
 
           if (!hasSubmittedOnTimeUpRef.current) {
             hasSubmittedOnTimeUpRef.current = true;
-            submitExamRef.current?.(true);
+            submitExamRef.current?.(violationsRef.current >= MAX_VIOLATIONS);
           }
 
           return 0;
@@ -351,36 +725,67 @@ export default function ExamView() {
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
-  if (!exam) return <div style={{color: 'white', textAlign: 'center', marginTop: '20%'}}>Loading Exam...</div>;
+  const questions = exam?.questions || [];
+  const totalQuestions = questions.length;
+  const safeQuestionIndex = Math.min(currentQuestionIndex, Math.max(0, totalQuestions - 1));
+  const currentQuestion = questions[safeQuestionIndex] || null;
+
+  useEffect(() => {
+    if (totalQuestions === 0) {
+      setCurrentQuestionIndex(0);
+      return;
+    }
+    setCurrentQuestionIndex((prev) => Math.min(prev, totalQuestions - 1));
+  }, [totalQuestions]);
+
+  if (!exam) {
+    return (
+      <div style={loadingShellStyle}>
+        <div style={loadingCardStyle}>Loading exam details...</div>
+      </div>
+    );
+  }
 
   return (
     <div id="exam-root-container" style={mainContainerStyle}>
-      {warningMsg && <div style={warningToastStyle}>{warningMsg}</div>}
+      {warningMsg && <div style={warningToastStyle}>Security Notice: {warningMsg}</div>}
 
       {(showModal || isLocked) && (
         <div style={modalOverlayStyle}>
-          <div style={modalBoxStyle}>
+          <div
+            style={{
+              ...modalBoxStyle,
+              borderColor: isLocked || modalType === "VIOLATION" ? "#ef4444" : "#4f46e5",
+            }}
+          >
             {cameraStream && (
-              <div style={{ marginBottom: "20px", width: "240px", margin: "0 auto 20px" }}>
-                {/* 🔥 Modal uses modalVideoRef */}
+              <div style={modalVideoWrapperStyle}>
                 <CameraPreview stream={cameraStream} videoRef={modalVideoRef} />
               </div>
             )}
             {isLocked ? (
               <>
-                <h2 style={{ color: "red" }}>INTEGRITY LOCK</h2>
-                <p style={{color: '#333'}}>Close the sidebar extension to continue.</p>
-                <button style={btnStyle} onClick={enterFullscreenAndStart}>Resume</button>
+                <h2 style={{ color: "#ef4444", marginBottom: 8 }}>Integrity Lock</h2>
+                <p style={modalTextStyle}>Close the sidebar/overlay and return to full screen to continue your exam.</p>
+                <button style={btnStyle} onClick={enterFullscreenAndStart}>Resume Exam</button>
               </>
             ) : modalType === "PERMISSIONS" ? (
-              <button style={btnStyle} onClick={requestCamera}>Allow Camera</button>
+              <>
+                <h2 style={modalTitleStyle}>Allow Camera & Microphone</h2>
+                <p style={modalTextStyle}>Before starting, we need camera and microphone access for live proctoring.</p>
+                <button style={btnStyle} onClick={requestCamera}>Allow Access</button>
+              </>
             ) : modalType === "START" ? (
-              <button style={btnStyle} onClick={enterFullscreenAndStart}>Start Exam</button>
+              <>
+                <h2 style={modalTitleStyle}>Ready To Start?</h2>
+                <p style={modalTextStyle}>Keep your face visible and centered. Exam will start in full screen mode.</p>
+                <button style={btnStyle} onClick={enterFullscreenAndStart}>Start Exam</button>
+              </>
             ) : (
               <>
-                <h2 style={{ color: "red" }}>Violation Detected!</h2>
-                <p style={{color: '#333'}}>Violations: {violations}/{MAX_VIOLATIONS}</p>
-                <button style={btnStyle} onClick={resumeExam}>Return to Exam</button>
+                <h2 style={{ color: "#ef4444", marginBottom: 8 }}>Security Alert</h2>
+                <p style={modalTextStyle}>Violation detected. Remaining attempts: {Math.max(0, MAX_VIOLATIONS - violations)}</p>
+                <button style={btnStyle} onClick={resumeExam}>I Understand</button>
               </>
             )}
           </div>
@@ -388,35 +793,107 @@ export default function ExamView() {
       )}
 
       {started && isFullScreen && !finished && (
-        <div style={{ 
-          display: "flex", gap: "30px",
+        <div style={{
+          ...examLayoutStyle,
           filter: (showModal || isLocked) ? "blur(30px)" : "none",
           opacity: (showModal || isLocked) ? 0.3 : 1,
           pointerEvents: (showModal || isLocked) ? "none" : "auto",
           transition: "all 0.3s ease"
         }}>
-          <div style={{ flex: 1 }}>
-            <h1>{exam.title}</h1>
-            <p style={{ color: "#ff4d4d", fontWeight: "bold" }}>Violations: {violations}/{MAX_VIOLATIONS}</p>
-            <p style={timerStyle}>Time Left: {formatTime(timeLeft)}</p>
-            {(exam?.questions?.map((q, idx) => (
-              <div key={q._id} style={questionCardStyle}>
-                <div><strong>Q{idx + 1}:</strong> {q.questionText}</div>
-                {q.options.map((opt) => (
-                  <label key={opt} style={{ display: "block", margin: "10px 0" }}>
-                    <input type="radio" checked={answers[q._id] === opt} onChange={() => setAnswers({ ...answers, [q._id]: opt })} /> {opt}
-                  </label>
-                ))}
-              </div>
-            )) || [])}
-            <button style={{ ...btnStyle, backgroundColor: "#28a745" }} onClick={() => submitExam(false)}>Submit</button>
+          <div style={examMainPaneStyle}>
+            <div style={examHeaderCardStyle}>
+              <h1 style={{ margin: 0, fontSize: 34, color: "#111827" }}>{exam.title}</h1>
+              <p style={{ ...timerStyle, margin: "10px 0 0" }}>Time Left: {formatTime(timeLeft)}</p>
+            </div>
+
+            <div style={statusRowStyle}>
+              <div style={{ ...statusPillStyle, borderLeft: "4px solid #ef4444" }}>Violations: {violations}/{MAX_VIOLATIONS}</div>
+              <div style={{ ...statusPillStyle, borderLeft: "4px solid #f59e0b" }}>Noise Warnings: {noiseWarnings}</div>
+              <div style={{ ...statusPillStyle, borderLeft: "4px solid #f97316" }}>Head Warnings: {headPoseWarnings}</div>
+              <div style={{ ...statusPillStyle, borderLeft: "4px solid #3b82f6" }}>Noise Level: {noiseLevel.toFixed(4)}</div>
+              <div style={{ ...statusPillStyle, borderLeft: "4px solid #64748b" }}>Mic: {micStatus}</div>
+            </div>
+
+            {currentQuestion ? (
+              <>
+                <div style={questionCardStyle}>
+                  <div style={questionMetaStyle}>
+                    Question {safeQuestionIndex + 1} of {totalQuestions}
+                  </div>
+                  <div style={questionTitleStyle}>{currentQuestion.questionText}</div>
+                  {currentQuestion.options.map((opt) => (
+                    <label key={opt} style={optionLabelStyle}>
+                      <input
+                        type="radio"
+                        checked={answers[currentQuestion._id] === opt}
+                        onChange={() => setAnswers({ ...answers, [currentQuestion._id]: opt })}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div style={questionNavCardStyle}>
+                  <button
+                    style={{ ...btnStyle, ...navBtnStyle, opacity: safeQuestionIndex === 0 ? 0.6 : 1 }}
+                    onClick={() => setCurrentQuestionIndex((prev) => Math.max(prev - 1, 0))}
+                    disabled={safeQuestionIndex === 0}
+                  >
+                    Previous
+                  </button>
+
+                  <div style={questionDotsWrapStyle}>
+                    {questions.map((q, idx) => (
+                      (() => {
+                        const isActive = idx === safeQuestionIndex;
+                        const isAnswered = answers[q._id] !== undefined && answers[q._id] !== null && answers[q._id] !== "";
+
+                        let dotStyle = { ...questionDotStyle };
+                        if (isAnswered) {
+                          dotStyle = { ...dotStyle, ...questionDotAnsweredStyle };
+                        }
+                        if (isActive) {
+                          dotStyle = {
+                            ...dotStyle,
+                            ...questionDotActiveStyle,
+                            ...(isAnswered ? questionDotActiveAnsweredStyle : null),
+                          };
+                        }
+
+                        return (
+                      <button
+                        key={q._id || idx}
+                        style={dotStyle}
+                        onClick={() => setCurrentQuestionIndex(idx)}
+                        aria-label={`Go to question ${idx + 1}`}
+                        title={`Question ${idx + 1}`}
+                      >
+                        {idx + 1}
+                      </button>
+                        );
+                      })()
+                    ))}
+                  </div>
+
+                  <button
+                    style={{ ...btnStyle, ...navBtnStyle, opacity: safeQuestionIndex === totalQuestions - 1 ? 0.6 : 1 }}
+                    onClick={() => setCurrentQuestionIndex((prev) => Math.min(prev + 1, totalQuestions - 1))}
+                    disabled={safeQuestionIndex === totalQuestions - 1}
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
+            ) : null}
+
+            <button style={submitBtnStyle} onClick={() => submitExam(false)}>Submit Exam</button>
           </div>
 
-          <div style={{ width: "280px" }}>
+          <div style={examSidePaneStyle}>
             <div style={webcamContainerStyle}>
-              {/* 🔥 Exam View uses webcamVideoRef (AI monitors this one) */}
+              <div style={proctorTitleStyle}>Live Proctoring</div>
               <CameraPreview stream={cameraStream} videoRef={webcamVideoRef} />
-              <div style={{ textAlign: "center", fontSize: "12px", marginTop: "8px" }}>Live Feed Active</div>
+              <div style={liveFeedBadgeStyle}>Active Feed</div>
             </div>
           </div>
         </div>
@@ -426,14 +903,216 @@ export default function ExamView() {
 }
 
 // STYLES
-const mainContainerStyle = { minHeight: "100vh", padding: "20px", backgroundColor: "#121212", color: "white", userSelect: "none" };
-const modalOverlayStyle = { position: "fixed", inset: 0, backgroundColor: "#000", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2147483647 };
-const modalBoxStyle = { backgroundColor: "#fff", padding: "40px", borderRadius: "15px", textAlign: "center", minWidth: "400px" };
-const btnStyle = { padding: "14px 28px", cursor: "pointer", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "bold", marginTop: '10px' };
-const questionCardStyle = { padding: "20px", borderRadius: "10px", marginBottom: "20px", border: "1px solid #333", backgroundColor: "#1e1e1e" };
-const webcamContainerStyle = { position: "sticky", top: "20px", border: "2px solid #444", borderRadius: "15px", padding: "10px", backgroundColor: "#000" };
-const warningToastStyle = { position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#ffc107", color: "#000", padding: "15px 30px", borderRadius: "50px", fontWeight: "bold", zIndex: 2147483647 };
-const timerStyle = { color: "#00e676", fontWeight: "bold", fontSize: "18px", marginBottom: "20px" };
+const loadingShellStyle = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  background: "linear-gradient(180deg, #f4f6fb 0%, #e8edf7 100%)",
+};
+const loadingCardStyle = {
+  padding: "22px 28px",
+  borderRadius: 16,
+  background: "#fff",
+  color: "#111827",
+  fontWeight: 700,
+  boxShadow: "0 18px 35px rgba(15, 23, 42, 0.15)",
+};
+const mainContainerStyle = {
+  minHeight: "100vh",
+  padding: "24px",
+  background: "linear-gradient(180deg, #f4f6fb 0%, #e8edf7 100%)",
+  color: "#111827",
+  userSelect: "none",
+};
+const examLayoutStyle = { display: "flex", gap: "28px", maxWidth: 1300, margin: "0 auto" };
+const examMainPaneStyle = { flex: 1 };
+const examSidePaneStyle = { width: 320 };
+const examHeaderCardStyle = {
+  backgroundColor: "#fff",
+  borderRadius: 18,
+  padding: "22px 24px",
+  marginBottom: 16,
+  boxShadow: "0 14px 28px rgba(15, 23, 42, 0.1)",
+  border: "1px solid #dbe3f1",
+};
+const statusRowStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+  marginBottom: 16,
+};
+const statusPillStyle = {
+  background: "#ffffff",
+  borderRadius: 12,
+  padding: "10px 12px",
+  fontWeight: 700,
+  fontSize: 13,
+  color: "#1f2937",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.08)",
+};
+const modalOverlayStyle = {
+  position: "fixed",
+  inset: 0,
+  backgroundColor: "rgba(16, 24, 40, 0.55)",
+  backdropFilter: "blur(6px)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 2147483647,
+};
+const modalBoxStyle = {
+  backgroundColor: "#fff",
+  padding: "30px",
+  borderRadius: 18,
+  textAlign: "center",
+  minWidth: 420,
+  maxWidth: 520,
+  border: "2px solid #4f46e5",
+  boxShadow: "0 24px 46px rgba(15, 23, 42, 0.35)",
+};
+const modalVideoWrapperStyle = {
+  marginBottom: 18,
+  width: 260,
+  marginLeft: "auto",
+  marginRight: "auto",
+  borderRadius: 14,
+  padding: 8,
+  background: "#0f172a",
+  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
+};
+const modalTitleStyle = { margin: "2px 0 8px", color: "#111827" };
+const modalTextStyle = { color: "#4b5563", lineHeight: 1.5, margin: "0 0 12px" };
+const btnStyle = {
+  padding: "12px 24px",
+  cursor: "pointer",
+  background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+  color: "#fff",
+  border: "none",
+  borderRadius: 12,
+  fontWeight: 700,
+  marginTop: "8px",
+  boxShadow: "0 10px 20px rgba(79, 70, 229, 0.35)",
+};
+const submitBtnStyle = {
+  ...btnStyle,
+  background: "linear-gradient(135deg, #ef4444 0%, #e11d48 100%)",
+  boxShadow: "0 10px 20px rgba(225, 29, 72, 0.35)",
+  marginTop: 4,
+};
+const questionCardStyle = {
+  padding: "20px",
+  borderRadius: "14px",
+  marginBottom: "16px",
+  border: "1px solid #dbe3f1",
+  backgroundColor: "#fff",
+  boxShadow: "0 12px 24px rgba(15, 23, 42, 0.08)",
+};
+const questionMetaStyle = {
+  display: "inline-block",
+  background: "#eef2ff",
+  color: "#4338ca",
+  fontWeight: 800,
+  fontSize: 12,
+  letterSpacing: 0.4,
+  textTransform: "uppercase",
+  borderRadius: 999,
+  padding: "6px 10px",
+  marginBottom: 12,
+};
+const questionTitleStyle = { color: "#111827", fontSize: 20, marginBottom: 8, lineHeight: 1.45 };
+const optionLabelStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  margin: "10px 0",
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid #e4e9f4",
+  color: "#1f2937",
+  background: "#f9fbff",
+};
+const questionNavCardStyle = {
+  display: "grid",
+  gridTemplateColumns: "auto 1fr auto",
+  gap: 14,
+  alignItems: "center",
+  background: "#fff",
+  borderRadius: 14,
+  padding: "14px 16px",
+  marginBottom: 12,
+  border: "1px solid #dbe3f1",
+  boxShadow: "0 10px 22px rgba(15, 23, 42, 0.08)",
+};
+const navBtnStyle = {
+  marginTop: 0,
+  minWidth: 110,
+  padding: "10px 16px",
+};
+const questionDotsWrapStyle = {
+  display: "flex",
+  gap: 8,
+  overflowX: "auto",
+  padding: "2px 2px 6px",
+};
+const questionDotStyle = {
+  minWidth: 34,
+  height: 34,
+  borderRadius: 999,
+  border: "1px solid #d5ddf0",
+  background: "#f8fafc",
+  color: "#475569",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+const questionDotAnsweredStyle = {
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #4ade80",
+};
+const questionDotActiveStyle = {
+  background: "#4f46e5",
+  color: "#fff",
+  border: "1px solid #4338ca",
+  boxShadow: "0 8px 16px rgba(79, 70, 229, 0.25)",
+};
+const questionDotActiveAnsweredStyle = {
+  boxShadow: "0 0 0 2px #22c55e, 0 8px 16px rgba(79, 70, 229, 0.25)",
+};
+const webcamContainerStyle = {
+  position: "sticky",
+  top: "18px",
+  border: "1px solid #dbe3f1",
+  borderRadius: "16px",
+  padding: "12px",
+  backgroundColor: "#fff",
+  boxShadow: "0 14px 28px rgba(15, 23, 42, 0.1)",
+};
+const proctorTitleStyle = { fontWeight: 800, color: "#4338ca", marginBottom: 10, fontSize: 14, letterSpacing: 0.5 };
+const liveFeedBadgeStyle = {
+  textAlign: "center",
+  fontSize: "12px",
+  marginTop: "10px",
+  color: "#065f46",
+  fontWeight: 700,
+  background: "#dcfce7",
+  borderRadius: 999,
+  padding: "6px 8px",
+};
+const warningToastStyle = {
+  position: "fixed",
+  top: "18px",
+  left: "50%",
+  transform: "translateX(-50%)",
+  backgroundColor: "#fff7ed",
+  color: "#9a3412",
+  border: "1px solid #fdba74",
+  padding: "13px 22px",
+  borderRadius: "999px",
+  fontWeight: "bold",
+  zIndex: 2147483647,
+  boxShadow: "0 10px 20px rgba(154, 52, 18, 0.18)",
+};
+const timerStyle = { color: "#4f46e5", fontWeight: 800, fontSize: "18px" };
 
 
 

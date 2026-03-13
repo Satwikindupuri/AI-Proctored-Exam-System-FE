@@ -161,6 +161,31 @@ return (
 <div className="container">
 <h2>Add Coding Questions</h2>
 
+  {/* Input Format Guide */}
+  <div style={{
+    backgroundColor: "#e3f2fd",
+    border: "1px solid #2196f3",
+    borderRadius: "4px",
+    padding: "12px",
+    marginBottom: "20px"
+  }}>
+    <h4 style={{ margin: "0 0 8px 0", color: "#1976d2" }}>📋 Input/Output Format Guide</h4>
+    <p style={{ margin: "0 0 8px 0", fontSize: "13px" }}>
+      <strong>Important:</strong> Format test case input exactly as your code expects to read it.
+    </p>
+    <ul style={{ margin: "8px 0", paddingLeft: "20px", fontSize: "13px" }}>
+      <li><strong>Multi-line input:</strong> Press Enter to create new lines</li>
+      <li><strong>Example:</strong> For code that reads count then values:
+        <div style={{ backgroundColor: "#fff", padding: "8px", margin: "4px 0", borderRadius: "2px", fontFamily: "monospace", fontSize: "12px" }}>
+          5<br/>
+          1 2 3 4 5
+        </div>
+      </li>
+      <li><strong>Whitespace matters:</strong> Spaces and newlines must match exactly</li>
+      <li><strong>Output format:</strong> Must match what code prints exactly (including whitespace)</li>
+    </ul>
+  </div>
+
   <input name="title" placeholder="Question Title" onChange={handleChange} />
   <textarea name="description" placeholder="Description" onChange={handleChange} />
 
@@ -175,32 +200,51 @@ return (
   <input name="returnType" placeholder="Return Type" onChange={handleChange} />
 
   <h3>Sample Test Case</h3>
-  <input
-    placeholder="Sample Input"
+  <div style={{ marginBottom: "10px", padding: "10px", backgroundColor: "#f0f0f0", borderRadius: "4px" }}>
+    <p style={{ margin: "0 0 8px 0", fontSize: "12px", color: "#666" }}>
+      <strong>Input Format This:</strong> Use newlines for multi-line input. Example for "read count then values":<br/>
+      <code style={{ backgroundColor: "#fff", padding: "4px", display: "inline-block", marginTop: "4px" }}>
+        5<br/>
+        1 2 3 4 5
+      </code>
+    </p>
+  </div>
+  <textarea
+    placeholder="Sample Input (use newlines for multiple lines)"
     value={formData.sampleTestCases[0]?.input || ""}
     onChange={(e) => updateSampleTestCase(0, "input", e.target.value)}
+    style={{ width: "100%", minHeight: "80px", padding: "8px", fontFamily: "monospace" }}
   />
-  <input
-    placeholder="Expected Output"
+  <textarea
+    placeholder="Expected Output (use newlines if multiple lines)"
     value={formData.sampleTestCases[0]?.expectedOutput || ""}
     onChange={(e) => updateSampleTestCase(0, "expectedOutput", e.target.value)}
+    style={{ width: "100%", minHeight: "60px", padding: "8px", fontFamily: "monospace", marginTop: "8px" }}
   />
 
   <h3>Hidden Test Cases (Min 1, Max 5)</h3>
   {formData.hiddenTestCases.map((test, index) => (
-    <div key={index}>
-      <input
-        placeholder="Input"
+    <div key={index} style={{ marginBottom: "12px", padding: "12px", border: "1px solid #ddd", borderRadius: "4px" }}>
+      <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "bold" }}>
+        Test Case {index + 1} Input
+      </label>
+      <textarea
+        placeholder="Input (use newlines for multiple lines)"
         value={test.input}
         onChange={(e) => updateHiddenTestCase(index, "input", e.target.value)}
+        style={{ width: "100%", minHeight: "60px", padding: "8px", fontFamily: "monospace" }}
       />
-      <input
-        placeholder="Expected Output"
+      <label style={{ display: "block", marginTop: "8px", marginBottom: "4px", fontSize: "12px", fontWeight: "bold" }}>
+        Test Case {index + 1} Expected Output
+      </label>
+      <textarea
+        placeholder="Expected Output (use newlines if multiple lines)"
         value={test.expectedOutput}
         onChange={(e) => updateHiddenTestCase(index, "expectedOutput", e.target.value)}
+        style={{ width: "100%", minHeight: "60px", padding: "8px", fontFamily: "monospace" }}
       />
       {formData.hiddenTestCases.length > 1 && (
-        <button onClick={() => removeHiddenTestCase(index)}>Remove</button>
+        <button onClick={() => removeHiddenTestCase(index)} style={{ marginTop: "8px" }}>Remove</button>
       )}
     </div>
   ))}

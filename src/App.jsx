@@ -3,6 +3,11 @@ import "./App.css";
 
 import Login from "./pages/Login";
 import StudentDashboard from "./pages/StudentDashboard";
+import StudentLiveExams from "./pages/StudentLiveExams";
+import StudentPreviousResults from "./pages/StudentPreviousResults";
+import SelfAnalysis from "./pages/SelfAnalysis";
+import StudentProfile from "./pages/StudentProfile";
+import StudentLayout from "./pages/StudentLayout";
 import FacultyDashboard from "./pages/FacultyDashboard";
 import FlaggedStudents from "./pages/FlaggedStudents";
 import ExamView from "./pages/ExamView";
@@ -24,8 +29,16 @@ function App() {
         {/* Public */}
         <Route path="/" element={<Login />} />
 
-        {/* Student */}
-        <Route path="/student" element={<StudentDashboard />} />
+        {/* Student — sidebar layout */}
+        <Route path="/student" element={<StudentLayout />}>
+          <Route index element={<StudentDashboard />} />
+          <Route path="live-exams" element={<StudentLiveExams />} />
+          <Route path="results" element={<StudentPreviousResults />} />
+          <Route path="analysis" element={<SelfAnalysis />} />
+          <Route path="profile" element={<StudentProfile />} />
+        </Route>
+
+        {/* Exam views — full screen, no sidebar */}
         <Route path="/exam/:examId" element={<ExamView />} />
         <Route path="/coding-exam/:examId" element={<CodingExamView />} />
 
