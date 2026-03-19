@@ -14,6 +14,44 @@
   margin-bottom: 22px;
 }
 
+.create-exam-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.create-exam-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #dbe1ec;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.create-exam-back-btn:hover {
+  transform: translateY(-1px);
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.create-exam-back-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.create-exam-step {
+  color: #475569;
+  font-weight: 700;
+}
+
 .create-exam-header h1 {
   margin: 0;
   font-size: 30px;
@@ -238,12 +276,31 @@
 }
 
 @media (max-width: 920px) {
+  .create-exam-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .create-exam-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .create-exam-card {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
+  .create-exam-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .create-exam-back-btn {
+    justify-content: center;
+  }
+
   .form-row {
     grid-template-columns: 1fr;
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api";
+import { showToast } from "../utils/toast";
 
 export default function StudentLiveExams() {
   const [exams, setExams] = useState([]);
@@ -19,7 +20,7 @@ export default function StudentLiveExams() {
         });
         setExams(sorted);
       } catch (err) {
-        alert("Failed to load exams");
+        showToast("error", "Failed to load exams");
       } finally {
         setLoading(false);
       }

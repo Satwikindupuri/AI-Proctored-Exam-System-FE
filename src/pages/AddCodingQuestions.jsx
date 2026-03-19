@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { showToast } from "../utils/toast";
+import "../styles/CodingExamForms.css";
 
 const AddCodingQuestions = () => {
 const { examId } = useParams();
@@ -39,7 +41,7 @@ const updateSampleTestCase = (index, field, value) => {
 
 const addHiddenTestCase = () => {
   if (formData.hiddenTestCases.length >= 5) {
-    alert("Maximum 5 hidden test cases allowed");
+    showToast("error", "Maximum 5 hidden test cases allowed");
     return;
   }
 
@@ -72,12 +74,12 @@ const updateHiddenTestCase = (index, field, value) => {
 
 const addQuestion = async () => {
   if (!examId) {
-    alert("Missing exam id in the URL. Please create an exam first.");
+    showToast("error", "Missing exam id in the URL. Please create an exam first.");
     return;
   }
 
   if (formData.hiddenTestCases.length === 0) {
-    alert("At least one hidden test case required");
+    showToast("error", "At least one hidden test case required");
     return;
   }
 
@@ -125,7 +127,7 @@ return { name, type };
 
   setQuestions(prev => [...prev, res.data]);
 
-  alert("Coding question added successfully");
+  showToast("success", "Coding question added successfully");
 
 } catch (error) {
   console.error("Add coding question failed", {
@@ -135,7 +137,7 @@ return { name, type };
     requestPayload,
     examId
   });
-  alert("Failed to add coding question");
+  showToast("error", "Failed to add coding question");
 }
 };
 
@@ -149,129 +151,169 @@ headers: { Authorization: `Bearer ${token}` }
 }
 );
 
-  alert("Exam Published Successfully");
+  showToast("success", "Exam Published Successfully");
   navigate("/faculty");
 
 } catch (error) {
-  alert("Publish failed");
+  showToast("error", "Publish failed");
 }
 };
 
 return (
-<div className="container">
-<h2>Add Coding Questions</h2>
+<div className="coding-form-page">
+  <div className="coding-form-shell">
+    <header className="coding-form-header">
+      <h1>Add Coding Questions</h1>
+      <p>Add one or more coding questions, then publish the exam.</p>
+    </header>
 
-  {/* Input Format Guide */}
-  <div style={{
-    backgroundColor: "#e3f2fd",
-    border: "1px solid #2196f3",
-    borderRadius: "4px",
-    padding: "12px",
-    marginBottom: "20px"
-  }}>
-    <h4 style={{ margin: "0 0 8px 0", color: "#1976d2" }}>📋 Input/Output Format Guide</h4>
-    <p style={{ margin: "0 0 8px 0", fontSize: "13px" }}>
-      <strong>Important:</strong> Format test case input exactly as your code expects to read it.
-    </p>
-    <ul style={{ margin: "8px 0", paddingLeft: "20px", fontSize: "13px" }}>
-      <li><strong>Multi-line input:</strong> Press Enter to create new lines</li>
-      <li><strong>Example:</strong> For code that reads count then values:
-        <div style={{ backgroundColor: "#fff", padding: "8px", margin: "4px 0", borderRadius: "2px", fontFamily: "monospace", fontSize: "12px" }}>
-          5<br/>
+    <div className="coding-form-card">
+      <div className="coding-guide-card">
+        <h4>Input / Output Format Guide</h4>
+        <p>
+          Format test case input exactly as your code expects to read it.
+        </p>
+        <ul>
+          <li>Use new lines for multi-line input.</li>
+          <li>Spaces and line breaks should match expected parsing.</li>
+          <li>Output must match exactly, including whitespace.</li>
+        </ul>
+        <div className="coding-guide-snippet">
+          5
+          <br />
           1 2 3 4 5
         </div>
-      </li>
-      <li><strong>Whitespace matters:</strong> Spaces and newlines must match exactly</li>
-      <li><strong>Output format:</strong> Must match what code prints exactly (including whitespace)</li>
-    </ul>
-  </div>
+      </div>
 
-  <input name="title" placeholder="Question Title" onChange={handleChange} />
-  <textarea name="description" placeholder="Description" onChange={handleChange} />
+      <div className="coding-form-grid">
+        <div className="coding-field">
+          <label htmlFor="title">Question Title</label>
+          <input id="title" name="title" placeholder="e.g. Sum of Array" onChange={handleChange} value={formData.title} />
+        </div>
 
-  <input name="functionName" placeholder="Function Name" onChange={handleChange} />
+        <div className="coding-field">
+          <label htmlFor="functionName">Function Name</label>
+          <input id="functionName" name="functionName" placeholder="e.g. solve" onChange={handleChange} value={formData.functionName} />
+        </div>
 
-  <input
-    name="parameters"
-    placeholder="Parameters (ex: a:int,b:int)"
-    onChange={handleChange}
-  />
+        <div className="coding-field">
+          <label htmlFor="parameters">Parameters</label>
+          <input
+            id="parameters"
+            name="parameters"
+            placeholder="e.g. a:int,b:int"
+            onChange={handleChange}
+            value={formData.parameters}
+          />
+        </div>
 
-  <input name="returnType" placeholder="Return Type" onChange={handleChange} />
+        <div className="coding-field">
+          <label htmlFor="returnType">Return Type</label>
+          <input id="returnType" name="returnType" placeholder="e.g. int" onChange={handleChange} value={formData.returnType} />
+        </div>
 
-  <h3>Sample Test Case</h3>
-  <div style={{ marginBottom: "10px", padding: "10px", backgroundColor: "#f0f0f0", borderRadius: "4px" }}>
-    <p style={{ margin: "0 0 8px 0", fontSize: "12px", color: "#666" }}>
-      <strong>Input Format This:</strong> Use newlines for multi-line input. Example for "read count then values":<br/>
-      <code style={{ backgroundColor: "#fff", padding: "4px", display: "inline-block", marginTop: "4px" }}>
-        5<br/>
-        1 2 3 4 5
-      </code>
-    </p>
-  </div>
-  <textarea
-    placeholder="Sample Input (use newlines for multiple lines)"
-    value={formData.sampleTestCases[0]?.input || ""}
-    onChange={(e) => updateSampleTestCase(0, "input", e.target.value)}
-    style={{ width: "100%", minHeight: "80px", padding: "8px", fontFamily: "monospace" }}
-  />
-  <textarea
-    placeholder="Expected Output (use newlines if multiple lines)"
-    value={formData.sampleTestCases[0]?.expectedOutput || ""}
-    onChange={(e) => updateSampleTestCase(0, "expectedOutput", e.target.value)}
-    style={{ width: "100%", minHeight: "60px", padding: "8px", fontFamily: "monospace", marginTop: "8px" }}
-  />
+        <div className="coding-field">
+          <label htmlFor="difficulty">Difficulty</label>
+          <select id="difficulty" name="difficulty" value={formData.difficulty} onChange={handleChange}>
+            <option value="EASY">EASY</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="HARD">HARD</option>
+          </select>
+        </div>
 
-  <h3>Hidden Test Cases (Min 1, Max 5)</h3>
-  {formData.hiddenTestCases.map((test, index) => (
-    <div key={index} style={{ marginBottom: "12px", padding: "12px", border: "1px solid #ddd", borderRadius: "4px" }}>
-      <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "bold" }}>
-        Test Case {index + 1} Input
-      </label>
-      <textarea
-        placeholder="Input (use newlines for multiple lines)"
-        value={test.input}
-        onChange={(e) => updateHiddenTestCase(index, "input", e.target.value)}
-        style={{ width: "100%", minHeight: "60px", padding: "8px", fontFamily: "monospace" }}
-      />
-      <label style={{ display: "block", marginTop: "8px", marginBottom: "4px", fontSize: "12px", fontWeight: "bold" }}>
-        Test Case {index + 1} Expected Output
-      </label>
-      <textarea
-        placeholder="Expected Output (use newlines if multiple lines)"
-        value={test.expectedOutput}
-        onChange={(e) => updateHiddenTestCase(index, "expectedOutput", e.target.value)}
-        style={{ width: "100%", minHeight: "60px", padding: "8px", fontFamily: "monospace" }}
-      />
-      {formData.hiddenTestCases.length > 1 && (
-        <button onClick={() => removeHiddenTestCase(index)} style={{ marginTop: "8px" }}>Remove</button>
-      )}
+        <div className="coding-field">
+          <label htmlFor="marks">Marks</label>
+          <input
+            id="marks"
+            type="number"
+            name="marks"
+            placeholder="e.g. 10"
+            onChange={handleChange}
+            value={formData.marks}
+            min="1"
+          />
+        </div>
+      </div>
+
+      <div className="coding-field" style={{ marginTop: 14 }}>
+        <label htmlFor="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          placeholder="Describe the coding problem"
+          onChange={handleChange}
+          value={formData.description}
+        />
+      </div>
+
+      <h3>Sample Test Case</h3>
+      <p className="coding-inline-note">This case is visible to students.</p>
+      <div className="coding-question-block">
+        <div className="coding-field">
+          <label>Sample Input</label>
+          <textarea
+            placeholder="Sample input"
+            value={formData.sampleTestCases[0]?.input || ""}
+            onChange={(e) => updateSampleTestCase(0, "input", e.target.value)}
+          />
+        </div>
+        <div className="coding-field" style={{ marginTop: 10 }}>
+          <label>Expected Output</label>
+          <textarea
+            placeholder="Expected output"
+            value={formData.sampleTestCases[0]?.expectedOutput || ""}
+            onChange={(e) => updateSampleTestCase(0, "expectedOutput", e.target.value)}
+          />
+        </div>
+      </div>
+
+      <h3>Hidden Test Cases (Min 1, Max 5)</h3>
+      {formData.hiddenTestCases.map((test, index) => (
+        <div key={index} className="coding-question-block">
+          <div className="coding-field">
+            <label>Test Case {index + 1} Input</label>
+            <textarea
+              placeholder="Hidden input"
+              value={test.input}
+              onChange={(e) => updateHiddenTestCase(index, "input", e.target.value)}
+            />
+          </div>
+          <div className="coding-field" style={{ marginTop: 10 }}>
+            <label>Test Case {index + 1} Expected Output</label>
+            <textarea
+              placeholder="Hidden expected output"
+              value={test.expectedOutput}
+              onChange={(e) => updateHiddenTestCase(index, "expectedOutput", e.target.value)}
+            />
+          </div>
+          {formData.hiddenTestCases.length > 1 && (
+            <button className="coding-danger-btn" onClick={() => removeHiddenTestCase(index)} style={{ marginTop: 10 }}>
+              Remove Test Case
+            </button>
+          )}
+        </div>
+      ))}
+
+      <div className="coding-row" style={{ marginTop: 10 }}>
+        <button className="coding-secondary-btn" onClick={addHiddenTestCase}>Add Hidden Test Case</button>
+        <button className="coding-primary-btn" onClick={addQuestion}>Add Question</button>
+      </div>
+
+      <div className="coding-added-list">
+        <h3>Added Questions</h3>
+        {questions.length === 0 && <p className="coding-inline-note">No questions added yet.</p>}
+        {questions.map((q, index) => (
+          <div key={index} className="coding-added-item">
+            <strong>{q.title}</strong> ({q.marks} marks)
+          </div>
+        ))}
+
+        {questions.length > 0 && (
+          <button className="coding-primary-btn" onClick={publishExam}>Publish Exam</button>
+        )}
+      </div>
     </div>
-  ))}
-
-  <button onClick={addHiddenTestCase}>Add Hidden Test Case</button>
-
-  <input
-    type="number"
-    name="marks"
-    placeholder="Marks"
-    onChange={handleChange}
-  />
-
-  <button onClick={addQuestion}>Add Question</button>
-
-  <hr />
-
-  <h3>Added Questions</h3>
-  {questions.map((q, index) => (
-    <div key={index}>
-      <p><strong>{q.title}</strong> ({q.marks} marks)</p>
-    </div>
-  ))}
-
-  {questions.length > 0 && (
-    <button onClick={publishExam}>Publish Exam</button>
-  )}
+  </div>
 </div>
 );
 };

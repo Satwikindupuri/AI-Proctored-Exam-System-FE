@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import api from "../api/api";
 import "../styles/FacultyDashboard.css";
 import "../styles/FlaggedStudents.css";
+import { showToast } from "../utils/toast";
 
 export default function FlaggedStudents() {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function FlaggedStudents() {
         setStudents(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
         console.error(err);
-        alert("Failed to load flagged students");
+        showToast("error", "Failed to load flagged students");
         setStudents([]);
       } finally {
         setLoading(false);

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./App.css";
+import AppToast from "./components/AppToast";
 
 import Login from "./pages/Login";
 import StudentDashboard from "./pages/StudentDashboard";
@@ -17,7 +18,6 @@ import CreateExam from "./pages/CreateExam";
 import FacultyLiveExams from "./pages/FacultyLiveExams";
 import CompletedExamDetails from "./pages/CompletedExamsDetails";
 import FacultyStudentAnalysis from "./pages/FacultyStudentAnalysis";
-import StudentAnalysisDetails from "./pages/StudentAnalysisDetails";
 import CreateCodingExam from "./pages/CreateCodingExam";
 import AddCodingQuestions from "./pages/AddCodingQuestions";
 import CodingExamView from "./pages/CodingExamView";
@@ -25,6 +25,7 @@ import CodingExamView from "./pages/CodingExamView";
 function App() {
   return (
     <BrowserRouter>
+      <AppToast />
       <Routes>
         {/* Public */}
         <Route path="/" element={<Login />} />
@@ -55,10 +56,6 @@ function App() {
         <Route
           path="/faculty/faculty-student-analysis"
           element={<FacultyStudentAnalysis />}
-        />
-        <Route
-          path="/faculty/student-analysis/:studentId"
-          element={<StudentAnalysisDetails />}
         />
         <Route
           path="/faculty/create-coding-exam"

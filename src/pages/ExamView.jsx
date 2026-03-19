@@ -4,6 +4,7 @@ import api from "../api/api";
 import { loadProctorModels } from "../proctoring/models";
 import { startProctoringEngine } from "../proctoring/engine";
 import { EVENT_TYPES } from "../proctoring/rules";
+import { showToast } from "../utils/toast";
 
 // --- REUSEABLE CAMERA COMPONENT ---
 const CameraPreview = ({ stream, videoRef }) => {
@@ -308,7 +309,7 @@ export default function ExamView() {
       startNoiseMonitoring(stream);
     } catch (err) {
       setMicStatus("permission-or-device-error");
-      alert("Camera and microphone access are required for proctoring.");
+      showToast("error", "Camera and microphone access are required for proctoring.");
     }
   };
 
@@ -334,7 +335,7 @@ export default function ExamView() {
         startAIProctoring();
       }, 1500);
     } catch (err) {
-      alert("Fullscreen is mandatory.");
+      showToast("error", "Fullscreen is mandatory.");
     }
   };
 
@@ -656,7 +657,7 @@ export default function ExamView() {
     try {
       const payload = Object.entries(answers).map(([qid, ans]) => ({ questionId: qid, answer: ans }));
       await api.post(`/student/exams/${examId}/submit`, { answers: payload, autoSubmit: auto });
-      alert(auto ? "Exam auto-submitted." : "Exam submitted successfully.");
+      showToast("success", auto ? "Exam auto-submitted." : "Exam submitted successfully.");
     } finally {
       stopNoiseMonitoring();
       if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());

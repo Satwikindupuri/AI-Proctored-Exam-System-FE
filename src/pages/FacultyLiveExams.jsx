@@ -3,11 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import api from "../api/api.js";
 import "../styles/FacultyLiveExams.css";
 import "../styles/FacultyDashboard.css";
+import { showToast } from "../utils/toast";
 
 export default function FacultyLiveExams() {
   const navigate = useNavigate();
   const location = useLocation();
   const [exams, setExams] = useState([]);
+  const [examPendingEnd, setExamPendingEnd] = useState(null);
+  const [endingExam, setEndingExam] = useState(false);
   const [filters, setFilters] = useState({
     year: "",
     branch: "",
@@ -101,8 +104,56 @@ export default function FacultyLiveExams() {
     loadExams();
   }, []);
 
+  const confirmEndExam = async () => {
+    if (!examPendingEnd || endingExam) {
+      return;
+    }
+
+    setEndingExam(true);
+    try {
+      await api.patch(`/faculty/exams/${examPendingEnd._id}/end`);
+      showToast("success", "Exam ended");
+      setExams((prev) => prev.filter((exam) => exam._id !== examPendingEnd._id));
+      setExamPendingEnd(null);
+    } catch (err) {
+      showToast("error", "Failed to end exam");
+    } finally {
+      setEndingExam(false);
+    }
+  };
+
   return (
     <div className="live-exams-page">
+      {examPendingEnd && (
+        <div className="live-confirm-overlay" onClick={() => !endingExam && setExamPendingEnd(null)}>
+          <div className="live-confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="live-confirm-badge">Confirm Action</div>
+            <h3>End this exam?</h3>
+            <p>
+              <strong>{examPendingEnd.title}</strong> will be closed for all students immediately.
+            </p>
+            <div className="live-confirm-actions">
+              <button
+                type="button"
+                className="live-confirm-btn live-confirm-btn-cancel"
+                onClick={() => setExamPendingEnd(null)}
+                disabled={endingExam}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="live-confirm-btn live-confirm-btn-danger"
+                onClick={confirmEndExam}
+                disabled={endingExam}
+              >
+                {endingExam ? "Ending..." : "Yes, End Exam"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <aside className="faculty-sidebar">
         <div>
           <div className="faculty-brand-row">
@@ -237,17 +288,7 @@ export default function FacultyLiveExams() {
 
               <div className="live-exam-actions">
                 <button className="live-exam-btn live-exam-btn-end"
-                  onClick={async () => {
-                    if (!window.confirm("Are you sure you want to end this exam?")) return;
-
-                    try {
-                      await api.patch(`/faculty/exams/${exam._id}/end`);
-                      alert("Exam ended");
-                      setExams(prev => prev.filter(e => e._id !== exam._id));
-                    } catch (err) {
-                      alert("Failed to end exam");
-                    }
-                  }}
+                  onClick={() => setExamPendingEnd(exam)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M18 6L6 18M6 6l12 12" />

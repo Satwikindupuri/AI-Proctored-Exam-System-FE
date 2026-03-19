@@ -1,9 +1,16 @@
 .completed-page {
   min-height: 100vh;
-  padding: 28px 32px;
+  display: flex;
   background: #f3f5fa;
   box-sizing: border-box;
   color: #0f172a;
+}
+
+.completed-main {
+  flex: 1;
+  min-width: 0;
+  padding: 30px 34px;
+  box-sizing: border-box;
 }
 
 .completed-header {
@@ -29,7 +36,7 @@
 
 .completed-list {
   max-width: 1100px;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .completed-message {
@@ -45,30 +52,54 @@
 .completed-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .completed-card {
-  border: 1px solid #e2e8f0;
+  border: 1px solid #dbe4f0;
   border-radius: 16px;
-  padding: 18px;
+  padding: 20px;
   cursor: pointer;
   text-align: left;
-  background: #ffffff;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.completed-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #4f46e5 0%, #2563eb 100%);
+  opacity: 0;
+  transition: opacity 0.22s ease;
 }
 
 .completed-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.12);
+  transform: translateY(-4px);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.14);
+  border-color: #c7d2fe;
+}
+
+.completed-card:hover::before {
+  opacity: 1;
+}
+
+.completed-card:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.35);
+  outline-offset: 2px;
 }
 
 .completed-card-main {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .completed-card-title {
@@ -80,13 +111,18 @@
 .completed-card-meta {
   color: #64748b;
   font-size: 14px;
+  font-weight: 600;
 }
 
 .completed-card-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
-  margin: 14px 0;
+  margin: 12px 0 14px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .completed-card-label {
@@ -111,4 +147,27 @@
 .completed-card-action {
   color: #4f46e5;
   font-weight: 700;
+  transition: transform 0.2s ease;
+}
+
+.completed-card:hover .completed-card-action {
+  transform: translateX(2px);
+}
+
+@media (max-width: 900px) {
+  .completed-page {
+    flex-direction: column;
+  }
+
+  .completed-main {
+    padding: 22px 18px;
+  }
+
+  .completed-header h1 {
+    font-size: 28px;
+  }
+
+  .completed-cards {
+    grid-template-columns: 1fr;
+  }
 }

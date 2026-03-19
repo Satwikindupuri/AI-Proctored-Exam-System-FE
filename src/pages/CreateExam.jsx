@@ -2,6 +2,7 @@ import { useState } from "react";
 import api from "../api/api";
 import { useNavigate } from "react-router-dom";
 import "../styles/CreateExam.css";
+import { showToast } from "../utils/toast";
 
 export default function CreateExam () {
   const navigate = useNavigate();
@@ -36,6 +37,15 @@ export default function CreateExam () {
     correctOptionIndex: null
   });
 
+  const handleExamTypeChange = (examType) => {
+    if (examType === "CODING") {
+      navigate("/faculty/create-coding-exam");
+      return;
+    }
+
+    setExamData({ ...examData, examType: "MCQ" });
+  };
+
   // ---------------- STEP 1: CREATE EXAM (DRAFT) ----------------
   const createExam = async () => {
     if (
@@ -45,7 +55,7 @@ export default function CreateExam () {
       !examData.branch ||
       !examData.section
     ) {
-      alert("Please fill all required fields");
+      showToast("error", "Please fill all required fields");
       return;
     }
 
@@ -62,7 +72,7 @@ export default function CreateExam () {
       setStep(2);
     } catch (err) {
       console.error(err.response?.data || err);
-      alert("Failed to create exam");
+      showToast("error", "Failed to create exam");
     } finally {
       setLoading(false);
     }
@@ -75,7 +85,7 @@ if (
 currentQ.options.some(o => !o) ||
 currentQ.correctOptionIndex === null
 ) {
-alert("Complete the question and select correct answer");
+showToast("error", "Complete the question and select correct answer");
 return;
 }
 
@@ -104,7 +114,7 @@ setCurrentQ({
 });
 } catch (err) {
 console.error("ADD QUESTION ERROR:", err.response?.data || err);
-alert("Failed to add question");
+showToast("error", "Failed to add question");
 }
 };
 
@@ -117,8 +127,18 @@ alert("Failed to add question");
             Fill in the exam details below and add questions to publish the exam.
           </p>
         </div>
-        <div style={{ color: "#475569", fontWeight: 700 }}>
-          Step {step} of 2
+        <div className="create-exam-header-actions">
+          <button
+            type="button"
+            className="create-exam-back-btn"
+            onClick={() => navigate("/faculty")}
+          >
+            <span className="create-exam-back-icon" aria-hidden="true">
+              &lt;-
+            </span>
+            Back to Dashboard
+          </button>
+          <div className="create-exam-step">Step {step} of 2</div>
         </div>
       </div>
 
@@ -142,7 +162,7 @@ alert("Failed to add question");
 
           <div className="form-row">
             <div className="form-field">
-              <label>Target Class</label>
+              <label>Target Class(NO NEED TO ENTER)</label>
               <input
                 placeholder="CS-2024-A"
                 value={
@@ -185,9 +205,7 @@ alert("Failed to add question");
                 className={`toggle-button ${
                   examData.examType === "MCQ" ? "active" : ""
                 }`}
-                onClick={() =>
-                  setExamData({ ...examData, examType: "MCQ" })
-                }
+                onClick={() => handleExamTypeChange("MCQ")}
               >
                 Multiple Choice
               </button>
@@ -196,9 +214,7 @@ alert("Failed to add question");
                 className={`toggle-button ${
                   examData.examType === "CODING" ? "active" : ""
                 }`}
-                onClick={() =>
-                  setExamData({ ...examData, examType: "CODING" })
-                }
+                onClick={() => handleExamTypeChange("CODING")}
               >
                 Coding Assessment
               </button>
@@ -218,7 +234,7 @@ alert("Failed to add question");
             </div>
 
             <div className="form-field">
-              <label>Branch</label>
+              <label>Branch(CAPITAL)</label>
               <input
                 placeholder="CSE"
                 value={examData.branch}
@@ -229,7 +245,7 @@ alert("Failed to add question");
             </div>
 
             <div className="form-field">
-              <label>Section</label>
+              <label>Section(CAPITAL)</label>
               <input
                 placeholder="A"
                 value={examData.section}
@@ -358,7 +374,7 @@ alert("Failed to add question");
                   disabled={aiLoading}
                   onClick={async () => {
                     if (!syllabus || !aiCount) {
-                      alert("Syllabus and number of questions required");
+                      showToast("error", "Syllabus and number of questions required");
                       return;
                     }
 
@@ -373,10 +389,10 @@ alert("Failed to add question");
                         }
                       );
                       setQuestions([...questions, ...res.data.questions]);
-                      alert("AI questions generated");
+                      showToast("success", "AI questions generated");
                     } catch (err) {
                       console.error(err.response?.data || err);
-                      alert("AI generation failed");
+                      showToast("error", "AI generation failed");
                     } finally {
                       setAiLoading(false);
                     }
@@ -503,10 +519,10 @@ alert("Failed to add question");
                         `/faculty/exams/${examId}/questions/update`,
                         { questions }
                       );
-                      alert("Questions saved successfully");
+                      showToast("success", "Questions saved successfully");
                     } catch (err) {
                       console.error(err.response?.data || err);
-                      alert("Failed to save questions");
+                      showToast("error", "Failed to save questions");
                     }
                   }}
                 >
@@ -519,7 +535,7 @@ alert("Failed to add question");
                       await api.patch(`/faculty/exams/${examId}/publish`);
                       navigate("/faculty");
                     } catch (err) {
-                      alert("Failed to publish exam");
+                      showToast("error", "Failed to publish exam");
                     }
                   }}
                 >
