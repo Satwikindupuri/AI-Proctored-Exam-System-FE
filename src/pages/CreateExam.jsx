@@ -164,7 +164,7 @@ showToast("error", "Failed to add question");
             <div className="form-field">
               <label>Target Class(NO NEED TO ENTER)</label>
               <input
-                placeholder="CS-2024-A"
+                placeholder="4-CSE-A"
                 value={
                   examData.year || examData.branch || examData.section
                     ? `${examData.year || ""}${
@@ -225,7 +225,7 @@ showToast("error", "Failed to add question");
             <div className="form-field">
               <label>Year</label>
               <input
-                placeholder="2024"
+                placeholder="4"
                 value={examData.year}
                 onChange={(e) =>
                   setExamData({ ...examData, year: e.target.value })

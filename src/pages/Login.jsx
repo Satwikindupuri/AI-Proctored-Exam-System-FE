@@ -48,7 +48,7 @@ export default function Login() {
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
           </div>
-          <h1 className="login-title">ExamPro</h1>
+          <h1 className="login-title">AI PROCTORED EXAMINATION SYSTEM</h1>
           <p className="login-subtitle">Secure, Smart, Seamless Assessments</p>
         </div>
 
@@ -80,7 +80,7 @@ export default function Login() {
           <input
             className="form-input"
             type="email"
-            placeholder="name@university.edu"
+            placeholder="student@test.com/faculty@test.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -90,21 +90,21 @@ export default function Login() {
           <label className="form-label">Password</label>
           <input
             className="form-input"
-            type="password"
-            placeholder="••••••••"
+            type="password123"
+            placeholder="password123"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
 
         <div className="form-footer">
-          <label className="remember-me">
+          {/* <label className="remember-me">
             <input type="checkbox" />
             Remember me
-          </label>
-          <a href="#" className="forgot-password">
+          </label> */}
+          {/* <a href="#" className="forgot-password">
             Forgot password?
-          </a>
+          </a> */}
         </div>
 
         <button className="login-btn" onClick={handleLogin}>

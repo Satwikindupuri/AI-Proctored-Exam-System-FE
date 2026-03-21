@@ -532,6 +532,9 @@ export default function CodingExamView() {
   const totalQuestions = codingQuestions.length;
   const safeQuestionIndex = Math.min(currentIndex, Math.max(0, totalQuestions - 1));
   const currentQuestion = codingQuestions[safeQuestionIndex] || null;
+  const sampleTestCases = Array.isArray(currentQuestion?.sampleTestCases)
+    ? currentQuestion.sampleTestCases
+    : [];
 
   useEffect(() => {
     if (totalQuestions === 0) {
@@ -913,7 +916,7 @@ export default function CodingExamView() {
               <div style={{ ...statusPillStyle, borderLeft: "4px solid #f59e0b" }}>Noise Warnings: {noiseWarnings}</div>
               <div style={{ ...statusPillStyle, borderLeft: "4px solid #f97316" }}>Head Warnings: {headPoseWarnings}</div>
               <div style={{ ...statusPillStyle, borderLeft: "4px solid #3b82f6" }}>Noise Level: {noiseLevel.toFixed(4)}</div>
-              <div style={{ ...statusPillStyle, borderLeft: "4px solid #64748b" }}>Mic: {micStatus}</div>
+              {/* <div style={{ ...statusPillStyle, borderLeft: "4px solid #64748b" }}>Mic: {micStatus}</div> */}
             </div>
 
             {currentQuestion ? (
@@ -923,12 +926,32 @@ export default function CodingExamView() {
                   <div style={questionTitleStyle}>{currentQuestion.title}</div>
                   <p style={questionDescStyle}>{currentQuestion.description}</p>
 
+                  {sampleTestCases.length > 0 && (
+                    <div style={sampleCasesBoxStyle}>
+                      <div style={sampleCasesTitleStyle}>Sample Test Case{sampleTestCases.length > 1 ? "s" : ""}</div>
+                      {sampleTestCases.map((testCase, idx) => (
+                        <div key={idx} style={sampleCaseItemStyle}>
+                          <div style={sampleCaseLabelStyle}>Case {idx + 1}</div>
+                          <div style={sampleCaseGridStyle}>
+                            <div>
+                              <div style={sampleCaseSubLabelStyle}>Input</div>
+                              <pre style={sampleCasePreStyle}>{testCase?.input || "-"}</pre>
+                            </div>
+                            <div>
+                              <div style={sampleCaseSubLabelStyle}>Expected Output</div>
+                              <pre style={sampleCasePreStyle}>{testCase?.expectedOutput || "-"}</pre>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div style={editorToolbarStyle}>
                     <label style={fieldLabelStyle}>Language</label>
                     <select value={language} onChange={(e) => setLanguage(e.target.value)} style={selectStyle}>
                       <option value="python">Python</option>
                       <option value="java">Java</option>
-                      <option value="cpp">C++</option>
                     </select>
                   </div>
 
@@ -1217,6 +1240,61 @@ const questionDescStyle = {
   color: "#334155",
   marginBottom: 14,
   lineHeight: 1.6,
+  whiteSpace: "pre-wrap",
+};
+
+const sampleCasesBoxStyle = {
+  border: "1px solid #dbe3f1",
+  background: "#f8fafc",
+  borderRadius: 12,
+  padding: 12,
+  marginBottom: 14,
+};
+
+const sampleCasesTitleStyle = {
+  fontWeight: 800,
+  fontSize: 13,
+  color: "#334155",
+  marginBottom: 8,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+};
+
+const sampleCaseItemStyle = {
+  padding: "10px 0",
+  borderTop: "1px dashed #cbd5e1",
+};
+
+const sampleCaseLabelStyle = {
+  fontWeight: 700,
+  fontSize: 12,
+  color: "#475569",
+  marginBottom: 8,
+};
+
+const sampleCaseGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+};
+
+const sampleCaseSubLabelStyle = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#64748b",
+  marginBottom: 4,
+  textTransform: "uppercase",
+};
+
+const sampleCasePreStyle = {
+  margin: 0,
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: "8px 10px",
+  fontFamily: "Consolas, Courier New, monospace",
+  fontSize: 12,
+  color: "#0f172a",
   whiteSpace: "pre-wrap",
 };
 

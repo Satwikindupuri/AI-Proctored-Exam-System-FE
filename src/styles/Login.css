@@ -4,7 +4,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0f172a;
   padding: 20px;
   box-sizing: border-box;
   position: fixed;
@@ -12,6 +12,27 @@
   left: 0;
   right: 0;
   bottom: 0;
+  overflow: hidden;
+}
+
+.login-container::before {
+  content: "";
+  position: absolute;
+  inset: -24px;
+  background-image: linear-gradient(120deg, rgba(23, 37, 84, 0.45), rgba(30, 41, 59, 0.25)),
+    url("/login-bg.png");
+  background-size: cover;
+  background-position: center;
+  filter: blur(10px);
+  transform: scale(1.06);
+}
+
+.login-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.28), transparent 10%),
+    radial-gradient(circle at 90% 90%, rgba(99, 102, 241, 0.24), transparent 10%);
 }
 
 .login-toast {
@@ -41,42 +62,47 @@
 }
 
 .login-card {
-  background: white;
-  border-radius: 20px;
-  padding: 48px 40px;
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.48);
+  border-radius: 18px;
+  padding: 30px 28px;
   width: 100%;
-  max-width: 440px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 360px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(8px);
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 22px;
 }
 
 .login-logo {
-  width: 80px;
-  height: 80px;
+  width: 70px;
+  height: 70px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 20px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 20px;
+  margin: 0 auto 16px;
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
 }
 
 .login-logo svg {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   color: white;
 }
 
 .login-title {
-  font-size: 32px;
+  font-size: 22px;
   font-weight: 700;
   color: #1a202c;
   margin: 0 0 8px 0;
+  line-height: 1.05;
 }
 
 .login-subtitle {
@@ -88,8 +114,8 @@
 .role-toggle {
   display: flex;
   gap: 8px;
-  margin-bottom: 32px;
-  background: #f7fafc;
+  margin-bottom: 18px;
+  background: #cacaca;
   padding: 4px;
   border-radius: 12px;
 }
@@ -122,7 +148,7 @@
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .form-label {
@@ -135,10 +161,10 @@
 
 .form-input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  font-size: 15px;
+  font-size: 14px;
   color: #2d3748;
   background: #f7fafc;
   transition: all 0.2s ease;
@@ -160,7 +186,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .remember-me {
@@ -191,12 +217,12 @@
 
 .login-btn {
   width: 100%;
-  padding: 16px;
+  padding: 13px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   border-radius: 10px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -214,8 +240,8 @@
 
 .contact-admin {
   text-align: center;
-  margin-top: 24px;
-  font-size: 14px;
+  margin-top: 18px;
+  font-size: 13px;
   color: #718096;
 }
 
@@ -227,4 +253,20 @@
 
 .contact-admin a:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .login-container {
+    padding: 14px;
+  }
+
+  .login-card {
+    max-width: 330px;
+    padding: 22px 18px;
+    border-radius: 14px;
+  }
+
+  .login-title {
+    font-size: 19px;
+  }
 }
