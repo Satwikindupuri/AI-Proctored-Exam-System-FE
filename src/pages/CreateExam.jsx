@@ -26,7 +26,8 @@ export default function CreateExam () {
     instructions: "",
     year: "",
     branch: "",
-    section: ""
+    section: "",
+    targetSectionsInput: ""
   });
 
   const [questions, setQuestions] = useState([]);
@@ -61,9 +62,22 @@ export default function CreateExam () {
 
     setLoading(true);
     try {
-      const res = await api.post("/faculty/exams", {
+      const parsedSections = examData.targetSectionsInput
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const payload = {
         ...examData,
-        status: "DRAFT" // IMPORTANT: must be DRAFT
+        section: examData.section || parsedSections[0] || "",
+        targetSections: parsedSections,
+        status: "DRAFT"
+      };
+
+      delete payload.targetSectionsInput;
+
+      const res = await api.post("/faculty/exams", {
+        ...payload
       });
 
       console.log("EXAM CREATED:", res.data.exam);
@@ -251,6 +265,17 @@ showToast("error", "Failed to add question");
                 value={examData.section}
                 onChange={(e) =>
                   setExamData({ ...examData, section: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Sections (comma-separated)</label>
+              <input
+                placeholder="A,B"
+                value={examData.targetSectionsInput}
+                onChange={(e) =>
+                  setExamData({ ...examData, targetSectionsInput: e.target.value })
                 }
               />
             </div>

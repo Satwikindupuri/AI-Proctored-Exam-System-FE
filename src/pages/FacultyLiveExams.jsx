@@ -90,6 +90,18 @@ export default function FacultyLiveExams() {
     navigate("/");
   };
 
+  const formatSectionLabel = (exam) => {
+    const sections = Array.isArray(exam.targetSections)
+      ? exam.targetSections.filter(Boolean)
+      : [];
+
+    if (sections.length > 0) {
+      return sections.join(",");
+    }
+
+    return exam.section || "-";
+  };
+
   const loadExams = async () => {
     const params = {};
     if (filters.year) params.year = filters.year;
@@ -257,7 +269,7 @@ export default function FacultyLiveExams() {
               <div className="live-exam-info">
                 <h3 className="live-exam-title">{exam.title}</h3>
                 <p className="live-exam-meta">
-                  {exam.year}-{exam.branch} • Started
+                  {exam.year}-{exam.branch}-{formatSectionLabel(exam)} • Started
                 </p>
               </div>
 

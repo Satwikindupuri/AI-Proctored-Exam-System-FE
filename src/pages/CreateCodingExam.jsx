@@ -13,7 +13,8 @@ duration: "",
 instructions: "",
 year: "",
 branch: "",
-section: ""
+section: "",
+targetSectionsInput: ""
 });
 
 const handleChange = (e) => {
@@ -29,12 +30,23 @@ e.preventDefault();
 try {
   const token = localStorage.getItem("token");
 
+  const parsedSections = formData.targetSectionsInput
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const payload = {
+    ...formData,
+    section: formData.section || parsedSections[0] || "",
+    targetSections: parsedSections,
+    examType: "CODING"
+  };
+
+  delete payload.targetSectionsInput;
+
   const res = await axios.post(
     "http://localhost:5000/api/faculty/exams",
-    {
-      ...formData,
-      examType: "CODING"
-    },
+    payload,
     {
       headers: {
         Authorization: `Bearer ${token}`
@@ -133,6 +145,18 @@ return (
             name="section"
             placeholder="e.g. A"
             value={formData.section}
+            onChange={handleChange}
+          />
+        </div>
+
+        <div className="coding-field">
+          <label htmlFor="targetSectionsInput">Sections (comma-separated)</label>
+          <input
+            id="targetSectionsInput"
+            type="text"
+            name="targetSectionsInput"
+            placeholder="e.g. A,B"
+            value={formData.targetSectionsInput}
             onChange={handleChange}
           />
         </div>

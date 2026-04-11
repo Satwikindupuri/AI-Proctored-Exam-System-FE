@@ -85,6 +85,18 @@ export default function CompletedExams() {
     navigate("/");
   };
 
+  const formatSectionLabel = (exam) => {
+    const sections = Array.isArray(exam.targetSections)
+      ? exam.targetSections.filter(Boolean)
+      : [];
+
+    if (sections.length > 0) {
+      return sections.join(",");
+    }
+
+    return exam.section || "-";
+  };
+
   useEffect(() => {
     const loadCompletedExams = async () => {
       try {
@@ -188,7 +200,7 @@ export default function CompletedExams() {
                   <div className="completed-card-main">
                     <div className="completed-card-title">{exam.title}</div>
                     <div className="completed-card-meta">
-                      {exam.year} – {exam.branch} – {exam.section}
+                      {exam.year} – {exam.branch} – {formatSectionLabel(exam)}
                     </div>
                   </div>
 
