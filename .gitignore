@@ -32,3 +32,4 @@ build/
 .DS_Store
 documentation/
 DOCUMENTATION.md
+prisma/
