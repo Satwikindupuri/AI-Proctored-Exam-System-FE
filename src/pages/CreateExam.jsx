@@ -18,6 +18,7 @@ export default function CreateExam () {
   const [aiCount, setAiCount] = useState("");
   const [difficulty, setDifficulty] = useState("MEDIUM");
   const [aiLoading, setAiLoading] = useState(false);
+  const [lastAiProvider, setLastAiProvider] = useState("");
 
   const [examData, setExamData] = useState({
     title: "",
@@ -413,11 +414,24 @@ showToast("error", "Failed to add question");
                           difficulty
                         }
                       );
-                      setQuestions([...questions, ...res.data.questions]);
-                      showToast("success", "AI questions generated");
+                      setQuestions((prev) => [
+                        ...prev,
+                        ...(Array.isArray(res.data?.questions) ? res.data.questions : [])
+                      ]);
+                      const provider = String(res.data?.provider || "").toLowerCase();
+                      setLastAiProvider(provider);
+                      showToast(
+                        "success",
+                        provider
+                          ? `AI questions generated via ${provider}`
+                          : "AI questions generated"
+                      );
                     } catch (err) {
                       console.error(err.response?.data || err);
-                      showToast("error", "AI generation failed");
+                      showToast(
+                        "error",
+                        err.response?.data?.message || "AI generation failed"
+                      );
                     } finally {
                       setAiLoading(false);
                     }
@@ -425,6 +439,12 @@ showToast("error", "Failed to add question");
                 >
                   {aiLoading ? "Generating..." : "Generate Questions"}
                 </button>
+
+                {lastAiProvider && (
+                  <p style={{ marginTop: 10, color: "#059669", fontWeight: 600 }}>
+                    Provider used: {lastAiProvider}
+                  </p>
+                )}
               </div>
             )}
 
