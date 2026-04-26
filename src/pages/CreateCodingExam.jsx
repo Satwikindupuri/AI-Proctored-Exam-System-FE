@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api/api";
 import { showToast } from "../utils/toast";
 import "../styles/CodingExamForms.css";
 
@@ -44,8 +44,8 @@ try {
 
   delete payload.targetSectionsInput;
 
-  const res = await axios.post(
-    "http://localhost:5000/api/faculty/exams",
+  const res = await api.post(
+    "/faculty/exams",
     payload,
     {
       headers: {

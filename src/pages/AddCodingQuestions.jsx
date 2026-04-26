@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api/api";
 import { showToast } from "../utils/toast";
 import "../styles/CodingExamForms.css";
 
@@ -106,8 +106,8 @@ return { name, type };
 
   requestPayload.parameters = parsedParams;
 
-  const res = await axios.post(
-    "http://localhost:5000/api/faculty/coding-question",
+  const res = await api.post(
+    "/faculty/coding-question",
     requestPayload,
     {
       headers: { Authorization: `Bearer ${token}` }
@@ -117,8 +117,8 @@ return { name, type };
   const questionId = res.data._id;
 
   // Attach question to exam
-  await axios.post(
-    `http://localhost:5000/api/faculty/exams/${examId}/add-coding-question`,
+  await api.post(
+    `/faculty/exams/${examId}/add-coding-question`,
     { questionId },
     {
       headers: { Authorization: `Bearer ${token}` }
@@ -143,8 +143,8 @@ return { name, type };
 
 const publishExam = async () => {
 try {
-await axios.patch(
-`http://localhost:5000/api/faculty/exams/${examId}/publish`,
+await api.patch(
+`/faculty/exams/${examId}/publish`,
 {},
 {
 headers: { Authorization: `Bearer ${token}` }
