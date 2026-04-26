@@ -80,7 +80,7 @@ export default function Login() {
           <input
             className="form-input"
             type="email"
-            placeholder="student@test.com/faculty@test.com"
+            placeholder="DEMO:student@test.com/faculty@test.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -90,8 +90,8 @@ export default function Login() {
           <label className="form-label">Password</label>
           <input
             className="form-input"
-            type="password123"
-            placeholder="password123"
+            type="password"
+            placeholder="DEMO:Student@123/Faculty@123"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
